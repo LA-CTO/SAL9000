@@ -1,8 +1,8 @@
 # RAKE https://github.com/fabianvf/python-rake
 # howto: https://towardsdatascience.com/extracting-keyphrases-from-text-rake-and-gensim-in-python-eefd0fad582f
 # 
-# Deployed to Google CLoud with:
-# gcloud functions deploy SAL9000 --project=sal9000-307923 --source=https://source.cloud.google.com/sal9000-307923/github_genechuang_sal9000/+/main --runtime=python39 --trigger-http
+# Deployed to Google CLoud local - run from repo root dir:
+# gcloud functions deploy keyphaseExtraction --project=sal9000-307923 --source=https://source.cloud.google.com/sal9000-307923/github_genechuang_sal9000/+/main --runtime=python39 --trigger-http
 
 # Deployed to Google Cloud Function url: https://us-west2-stockaccounts.cloudfunctions.net/KeyPhraseExtract?message=test
 
