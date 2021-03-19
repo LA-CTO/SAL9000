@@ -7,21 +7,19 @@ from rake_nltk import Rake
 import spacy
 import pytextrank
 
-TEST_STRING = "Are there any opinions on accounting systems / ERP's? We're using SAP Business One (aka Baby SAP) and need to upgrade to something a bit more full featured. Personally I find the SAP consulting ecosystem rather abysmal in terms of talent, looking at netsuite as an alternative but curious to know what others are using / we should be looking at."
+TEST_STRINGS = [
+    "Anyone here use Copper CRM at their company? I’m working with two sales consultants (one is used to Salesforce and the other is used to Hubspot). I personally liked Copper cause it sits on top of Gmail. I’d rather use what the salespeople want to use, but in this case there’s no consensus lol.",
+    "Are there any opinions on accounting systems / ERP's? We're using SAP Business One (aka Baby SAP) and need to upgrade to something a bit more full featured. Personally I find the SAP consulting ecosystem rather abysmal in terms of talent, looking at netsuite as an alternative but curious to know what others are using / we should be looking at."
+    ]
 
 #TEST_STRING = "erp"
 
 STOPWORDS_LIST=RAKE.SmartStopList()
-print("Initializing RAKE with SmartStopList size:", len(STOPWORDS_LIST))
+#print("Initializing RAKE with SmartStopList size:", len(STOPWORDS_LIST))
 RAKE_OBJECT = RAKE.Rake(RAKE.SmartStopList())
-
-
 
 def RAKEPhraseExtraction(extractString):
     return RAKE_OBJECT.run(extractString)
-
-
-
 
 # Return reverse order tuple of 2nd element
 def sortTuple(tup):
@@ -77,22 +75,24 @@ def hello_world(request):
     keyPhrases = extractTopPhrasesRAKE(rakeme, returnjson)
     return keyPhrases
 
-rakeme = TEST_STRING
-print('Raking:', rakeme)
-raked = extractTopPhrasesRAKE(rakeme, 0)
-print('raked return 1:', raked)
-raked = extractTopPhrasesRAKE(rakeme, 1)
-print('raked return all in json:', raked)
-print('Rake_NLTK results:', RAKENLTKPhaseExtraction(rakeme))
+if __name__ == "__main__":
+    for extractme in TEST_STRINGS:
+        print('Raking:', extractme)
+        raked = extractTopPhrasesRAKE(extractme, 0)
+        print('raked return top:', raked)
+        raked = extractTopPhrasesRAKE(extractme, 1)
+        print('raked return all:', raked)
 
-# load a spaCy model, depending on language, scale, etc.
-nlp = spacy.load("en_core_web_sm")
-# add PyTextRank to the spaCy pipeline
-nlp.add_pipe("textrank", last=True)
-doc = nlp(rakeme)
+        print('Rake_NLTK results:', RAKENLTKPhaseExtraction(extractme))
 
-# examine the top-ranked phrases in the document
-print('PyTextRank:', doc._.phrases)
-#for p in doc._.phrases:
-#    print("{:.4f} {:5d}  {}".format(p.rank, p.count, p.text))
-#    print(p.chunks)
+        print('PyTextRanking: ', extractme)
+        # load a spaCy model, depending on language, scale, etc.
+        nlp = spacy.load("en_core_web_sm")
+        # add PyTextRank to the spaCy pipeline
+        nlp.add_pipe("textrank", last=True)
+        doc = nlp(extractme)
+        # examine the top-ranked phrases in the document
+        print('PyTextRank:', doc._.phrases)
+        for p in doc._.phrases:
+            print("{:.4f} {:5d}  {}".format(p.rank, p.count, p.text))
+        #    print(p.chunks)
