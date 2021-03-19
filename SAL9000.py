@@ -48,7 +48,7 @@ def RAKENLTKPhaseExtraction(extractString):
     r.extract_keywords_from_text(extractString)
     return r.get_ranked_phrases()[0:10]
 
-def hello_world(request):
+def keyphraseExtraction(request):
     """Responds to any HTTP request.
     Args:
         request (flask.Request): HTTP request object.
