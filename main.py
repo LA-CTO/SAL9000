@@ -9,6 +9,7 @@
 # Call functionl: https://us-west2-sal9000-307923.cloudfunctions.net/keyphraseExtraction?message=helloSal9000
 #  
 
+import json
 import RAKE
 from rake_nltk import Rake
 import spacy
@@ -17,6 +18,7 @@ import requests
 from google.cloud import secretmanager
 from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
+from threading import Thread
 
 # TODO:  Put SLACK_BOT_TOKEN and SLACK_USER_TOKEN in Google Secret Manager https://dev.to/googlecloud/using-secrets-in-google-cloud-functions-5aem
 client = secretmanager.SecretManagerServiceClient()
@@ -32,37 +34,7 @@ SLACK_USER_TOKEN = getGCPSecretKey('SLACK_USER_TOKEN')
 
 SLACK_WEB_CLIENT_BOT = WebClient(token=SLACK_BOT_TOKEN) 
 SLACK_WEB_CLIENT_USER = WebClient(token=SLACK_USER_TOKEN) 
-SLACK_BLOCK_KIT = [
-        {
-            "type": "section",
-            "text": {
-                "type": "mrkdwn",
-                "text": "Danny Torrence left the following review for your property:"
-            }
-        },
-        {
-            "type": "section",
-            "text": {
-                "type": "mrkdwn",
-                "text": "<https://example.com|Overlook Hotel> \n :star: \n Doors had too many axe holes, guest in room " +
-                    "237 was far too rowdy, whole place felt stuck in the 1920s."
-            },
-            "accessory": {
-                "type": "image",
-                "image_url": "https://images.pexels.com/photos/750319/pexels-photo-750319.jpeg",
-                "alt_text": "Haunted hotel image"
-            }
-        },
-        {
-            "type": "section",
-            "fields": [
-                {
-                    "type": "mrkdwn",
-                    "text": "*Average Rating*\n1.0"
-                }
-            ]
-        }
-    ]
+
 
 #For Slack Search API: https://api.slack.com/methods/search.messages
 SLACK_SEARCH_URL = 'https://slack.com/api/search.messages'
@@ -72,7 +44,7 @@ SLACK_SEARCH_URL = 'https://slack.com/api/search.messages'
 #    "Are there any opinions on accounting systems / ERP's? We're using SAP Business One (aka Baby SAP) and need to upgrade to something a bit more full featured. Personally I find the SAP consulting ecosystem rather abysmal in terms of talent, looking at netsuite as an alternative but curious to know what others are using / we should be looking at."
 #    ]
 
-TEST_STRINGS = ["What is serverless?"]
+TEST_STRINGS = ["What is redis?"]
 
 STOPWORDS_LIST=RAKE.SmartStopList()
 RAKE_OBJECT = RAKE.Rake(RAKE.SmartStopList())
@@ -139,6 +111,7 @@ def keyphraseExtraction(request):
     return str(keyPhrases)
 
 # EventSubscription detected a top post in channel, SAL9000 to extract KeyPhrase, Search and Respond
+# Slack Event webhook: https://us-west2-sal9000-307923.cloudfunctions.net/respondToPost
 # https://api.slack.com/events/message.groups
 # Deployed to Google CLoud local - run from repo root dir:
 # gcloud functions deploy respondToPost --runtime python39 --trigger-http --allow-unauthenticated --project=sal9000-307923 --region=us-west2
@@ -165,23 +138,95 @@ def respondToPost(request):
         print("processing event: ", event)
         if 'thread_ts' in event:
             print('This is a thread message so not responding to it')
-            return 'SAL 9001 not responding to thread message'
-        if 'bot_id' in event:
+        elif 'bot_id' in event:
             print('This is a bot message so not responding to it')
-            return 'SAL 9001 not responding to bot message'
-        if 'text' in event:
-            text = event['text']
-            channel_id = event['channel']
-            ts = event['ts']
-            user = event['user']
+        elif event.get("subtype") is None and 'text' in event:
+            handleAsynchSALResponse(event, 3)
+    return ''    
 
-            rtnStr = constructSALReply(user, text, 3)
+# Use selected a keyphrase from SAL9001 first response, perform Search and Respond with search results
+# Slack Event webhook: https://us-west2-sal9000-307923.cloudfunctions.net/respondToSearchButton
+# Deployed to Google CLoud local - run from repo root dir:
+# gcloud functions deploy respondToSearchButton --runtime python39 --trigger-http --allow-unauthenticated --project=sal9000-307923 --region=us-west2
+#
 
-            response = postMessageToSlackChannel(channel_id, ts, rtnStr)
-            return 'SAL 9001 responded!'
-    return 'SAL 9001 is ok?'    
+def respondToSearchButton(request):
+    """Responds to any HTTP request.
+    Args:
+        request (flask.Request): HTTP request object.
+    Returns:
+        The response text or any set of values that can be turned into a
+        Response object using
+        `make_response <https://flask.palletsprojects.com/en/1.1.x/api/#flask.Flask.make_response>`.
+    """
+    print("main.respondToSearchButton called with request: ", request)
+
+ # Get data from payload stolen from Phoebe: https://github.com/TotoroSyd/heybot/blob/master/heybot_v2.py
+
+    #solution janice https://medium.com/@janicejabraham/creating-a-slack-app-using-the-events-api-and-slack-dialog-368ea54273af
+    payload = json.loads(request.form.get('payload'))
+    print('respondToSearch got payload: ', payload)
+    payload_type = payload["type"]
+    print('respondToSearch payload_type: ', payload_type)
+    # Initiate channel_id
+
+    if payload_type == "block_actions":
+        # get channel_id
+        channel_id = payload["channel"]["id"]
+        # Get action id to track button action
+        actions = payload["actions"][0]
+        action_id = actions["action_id"]
+        value = actions["value"]
+        print('action_id:', action_id)
+        print('value:', value)
+        keyPhrase = value
+
+        print('Gonna refresh the block with new search:', keyPhrase)
+        handleAsynchButtonResponse(payload, 3)
+#        block = constructSALReply(user, origText, 5, keyPhrase)
+    return ''    
+
+def handleAsynchButtonResponse(payload, rtnCount):
+    thr_response = Thread(target=handleButtonResponse,
+                          args=[payload, rtnCount])
+    thr_response.start()
+
+def handleButtonResponse(payload, rtnCount):
+    print('about to extract some info from payload: ', payload)
+    user = payload['user']['id']
+    text = payload['text']
+    channel_id = payload['channel']['id']
+    ts = payload['ts']
+
+    block = constructSALReply(user, text, rtnCount, '')
+    print('Modified block: ', block)
+#    response = postMessageToSlackChannel(channel_id, ts, rtnStr)
+    response = postBlockToSlackChannel(channel_id, ts, block, text)
 
 
+
+
+
+# Create a thread to handle the request and respond immediately
+# A response time of longer than 3 seconds causes a timeout 
+# error message in Slack
+def handleAsynchSALResponse(event, rtnCount):
+    thr_response = Thread(target=handleSALResponse,
+                          args=[event, 3])
+    thr_response.start()
+
+def handleSALResponse(event, rtnCount):
+    text = event['text']
+    channel_id = event['channel']
+    ts = event['ts']
+    user = event['user']
+
+    block = constructSALReply(user, text, rtnCount, '')
+#    response = postMessageToSlackChannel(channel_id, ts, rtnStr)
+    response = postBlockToSlackChannel(channel_id, ts, block, text)
+
+
+#Posts a String message to Slack channel
 def postMessageToSlackChannel(channel, ts, text):
     # Test send message to 'test' channel
     try:
@@ -196,8 +241,25 @@ def postMessageToSlackChannel(channel, ts, text):
         assert e.response["error"]    # str like 'invalid_auth', 'channel_not_found'
     return response    
 
+#Posts a BlockKit to Slack channel
+def postBlockToSlackChannel(channel, ts, block, text):
+    # Test send blockkit to 'test' channel
+    try:
+        response = SLACK_WEB_CLIENT_BOT.chat_postMessage(
+        channel = channel,
+        thread_ts=ts,
+        text = text,
+        blocks = block
+        )
+    except SlackApiError as e:
+        # You will get a SlackApiError if "ok" is False
+        print('error sending message to slack channel:', e)
+        assert e.response["error"]    # str like 'invalid_auth', 'channel_not_found'
+    return response    
+
 # This method will construct the entire SAL 9001 Response, may be Boxkit
-def constructSALReply(user, text, resultCount):
+def constructSALReply(user, text, resultCount, searchme):
+
     extractedKeyPhrases = extractTopPhrasesRAKE(text, 1)
     count = 0
     print('who is ', user)
@@ -208,20 +270,111 @@ def constructSALReply(user, text, resultCount):
     if(len(extractedKeyPhrases) < 0):
         return "Hello @" + username + " I don't know what you want"
 
-    returnStr="Hello @" + username +" I think you meant " + str(extractedKeyPhrases) + ", results:\n"
+#    returnStr="Hello @" + username +" I think you meant " + str(extractedKeyPhrases) + ", results:\n"
+    returnStr="Hello @" + username +" please pick one of the following topics for me to noodle on:\n"
+
+    slack_block_kit = [
+        {
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": returnStr
+            }
+        },
+        {
+			"type": "divider"
+		},
+    ]
+
 #    print('Extracted key phrases: ', extractedKeyPhrases)
+    print('Slack Blockkit: ', slack_block_kit)
+    elements = []
+    count = 0
     for keyPhraseTuple in extractedKeyPhrases:
         keyPhrase = keyPhraseTuple[0]
-#        print('Gonna search this keyphrase:', keyPhrase)
-        searchResults = searchSlackMessages(keyPhrase, resultCount, 1)
-        for searchResult in searchResults:
-            returnStr += searchResult + '\n'
-        count = count + 1
-        print('count is now:', count)
-        if count >= 3:
-            break
-    return returnStr
+        weight = keyPhraseTuple[1]
+        thisButtonStyle = "primary"
+        if len(searchme) > 0:
+            if searchme == keyPhrase:
+                thisButtonStyle = "danger"
+        elif count == 0:
+            thisButtonStyle = "danger"
+            searchme = keyPhrase
+        count += 1    
 
+        elements.append(
+            {
+                "type": "button",
+                "text": {
+                    "type": "plain_text",
+                    "text": keyPhrase + " " + str(weight)
+                },
+    			"style": thisButtonStyle,
+                "value": keyPhrase,
+            }
+        )
+    slack_block_kit.append(
+        {
+            "type": "actions",
+            "elements": elements
+        }
+    )
+    slack_block_kit.append(
+        {
+			"type": "divider"
+		}
+    )
+    print('Slack Blockkit before search: ', slack_block_kit)
+    resultLinks = searchSlackMessages(searchme, 5, 1)
+    linksString = ''
+    for thisPermaLink in resultLinks:
+        linksString += thisPermaLink + '\n'
+    slack_block_kit.append(
+       {
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": linksString
+            }
+        }
+    )
+    print('Slack Blockkit after search: ', slack_block_kit)
+
+    return slack_block_kit
+
+
+EXAMPLE_BLOCK = [
+		{
+			"type": "section",
+			"text": {
+				"type": "mrkdwn",
+				"text": "You have a new request:\n*<fakeLink.toEmployeeProfile.com|Fred Enriquez - New device request>*"
+			}
+		},
+		{
+			"type": "actions",
+			"elements": [
+				{
+					"type": "button",
+					"text": {
+						"type": "plain_text",
+						"text": "Approve"
+					},
+					"style": "primary",
+					"value": "click_me_123"
+				},
+				{
+					"type": "button",
+					"text": {
+						"type": "plain_text",
+						"text": "Deny"
+					},
+					"style": "danger",
+					"value": "click_me_123"
+				}
+			]
+		}
+]
 
 # defining a params dict for the parameters to be sent to the API 
 # https://api.slack.com/methods/search.messages
@@ -238,6 +391,9 @@ def searchSlackMessages(text, resultCount, page):
     for match in response['messages']['matches']:
         results.append(match['permalink'])
     return results
+
+
+
 
 if __name__ == "__main__":
     print('found SLACK_BOT_TOKEN:', SLACK_BOT_TOKEN)
@@ -264,6 +420,7 @@ if __name__ == "__main__":
             print("{:.4f} {:5d}  {}".format(p.rank, p.count, p.text))
         #    print(p.chunks)
 
+        #testing RESTFUL call to keyPhraseExtraction
 #        extractmeurl = ENDPOINT_URL + extractme
 #        print("calling url: ", extractmeurl)
 #        response = requests.get(extractmeurl)
@@ -272,7 +429,15 @@ if __name__ == "__main__":
     #postMessageToSlackChannel('test', '', 'Hello from SAL 9001! :tada:')        
 
     # Test Slack Search
-    SALsays = constructSALReply('U5FGEALER', 'serverless', 10)
-    print(SALsays)
+    SALsays = constructSALReply('U5FGEALER', 'serverless', 5, '')
+    print("SALsays: ", SALsays)
 
+    print("About to go threading!")
+    event = {
+        'text': 'What is lambda and serverless?', 
+        'channel': 'test', 
+        'ts': '1616474040.077300',
+        'user': 'U5FGEALER'
+        }
+    handleAsynchSALResponse(event, 3)
 
