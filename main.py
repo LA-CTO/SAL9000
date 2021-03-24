@@ -38,7 +38,9 @@ SLACK_WEB_CLIENT_USER = WebClient(token=SLACK_USER_TOKEN)
 
 #For Slack Search API: https://api.slack.com/methods/search.messages
 SLACK_SEARCH_URL = 'https://slack.com/api/search.messages'
-NUM_SEARCH_RESULTS = 3
+
+#Number of search results to return - if more than 5, Slack will not unfural block because to big. Yeah dumb.
+NUM_SEARCH_RESULTS = 5
 
 #TEST_STRINGS = [
 #    "Anyone here use Copper CRM at their company? I’m working with two sales consultants (one is used to Salesforce and the other is used to Hubspot). I personally liked Copper cause it sits on top of Gmail. I’d rather use what the salespeople want to use, but in this case there’s no consensus lol.",
@@ -51,6 +53,8 @@ STOPWORDS_LIST=RAKE.SmartStopList()
 RAKE_OBJECT = RAKE.Rake(RAKE.SmartStopList())
 ENDPOINT_URL = "https://us-west2-sal9000-307923.cloudfunctions.net/keyphraseExtraction?message="
 
+TEST_CHANNEL_ID = 'GUEPXFVDE'
+SAL_IMAGE = 'https://lh3.googleusercontent.com/pw/ACtC-3daTgsFLR9jBLgulqfYWmqymWm4FzZ16dxepd-X2bXxnJ2gaAe3qo0T5-HvTV42-UGlESQogwU-yNen10-OUGP17BdrY8jf7TAe0vdOzQS57wqNpltdpWSCjapw8fh68ksvuhOpUnu5S2fCoOVvbbmbng=w883-h398-no?authuser=0'
 
 def RAKEPhraseExtraction(extractString):
     return RAKE_OBJECT.run(extractString)
@@ -240,56 +244,78 @@ def postMessageToSlackChannel(channel, ts, text):
         assert e.response["error"]    # str like 'invalid_auth', 'channel_not_found'
     return response    
 
-#Posts a Block to parent post thread_ts.  If this_ts > 0, update the Block
+#Posts a Block to parent post thread_ts.  
+# If this_ts > 0, this is a user button push, delete the block and create new with text search
 def postBlockToSlackChannel(channel, thread_ts, this_ts, block, text):
-    # Test send blockkit to 'test' channel
+    response = ''
     try:
-        if len(this_ts) == 0: #Post a new reply block
-            response = SLACK_WEB_CLIENT_BOT.chat_postMessage(
+        if len(this_ts) > 0: # Button push of existing block, delete it then re-post
+            print('delete/repost existing block to thread because this_ts:', this_ts)
+            response = SLACK_WEB_CLIENT_BOT.chat_delete(
+            channel = channel,
+            ts=this_ts,
+            )
+
+        print('posting new block to thread:', block)
+        response = SLACK_WEB_CLIENT_BOT.chat_postMessage(
             channel = channel,
             thread_ts=thread_ts,
             text = text,
             blocks = block
             )
-        else: #Update the existing reply block and unfurl the permalink
-            response = SLACK_WEB_CLIENT_BOT.chat_update(
-            channel = channel,
-            ts=this_ts,
-            text = text,
-            blocks = block,
-            attachments = [] # remove previous preview attachments, hopefully will generate new previews?
-            )
-
-            
     except SlackApiError as e:
         # You will get a SlackApiError if "ok" is False
-        print('error sending message to slack channel:', e)
+        print('error postBlockToSlackChannel:', e)
         assert e.response["error"]    # str like 'invalid_auth', 'channel_not_found'
     return response    
 
 # This method will construct the entire SAL 9001 Response, may be Boxkit
+"""
+    CAN'T USE FULL IMAGE BLOCK BECAUSE SLACK WON'T UNFURL ANY LINKS
+    slack_block_kit.append(
+        {
+			"type": "image",
+			"block_id": "sal_image",
+			"image_url": SAL_IMAGE,
+			"alt_text": "SAL 9001"
+        }
+    )
+    slack_block_kit.append(
+        {
+			"type": "divider"
+		}
+    )
+
+"""
 def constructSALReply(user, text, resultCount, searchme):
 
     extractedKeyPhrases = extractTopPhrasesRAKE(text, 1)
     count = 0
 #    print('who is ', user)
-    whoami = SLACK_WEB_CLIENT_BOT.users_info(user=user)
+#    whoami = SLACK_WEB_CLIENT_BOT.users_info(user=user)
 #    print('whoami is ', whoami)
-    username = whoami['user']['name'];
+#    username = whoami['user']['name'];
 #    print('username is ', username)
     if(len(extractedKeyPhrases) < 0):
         return "Hello @" + username + " I don't know what you want"
 
-#    returnStr="Hello @" + username +" I think you meant " + str(extractedKeyPhrases) + ", results:\n"
-    returnStr="Hello @" + username +" please pick one of the following topics for me to noodle on:\n"
+    returnStr="Hello <@" + user +"> please pick one of the following keyphrase for me to search my memory banks:\n"
 
     slack_block_kit = [
+		{
+			"type": "divider"
+		},
         {
             "type": "section",
             "text": {
                 "type": "mrkdwn",
                 "text": returnStr
-            }
+			},
+			"accessory": {
+				"type": "image",
+				"image_url": SAL_IMAGE,
+				"alt_text": "SAL_IMAGE"
+			}
         },
         {
 			"type": "divider"
@@ -297,7 +323,7 @@ def constructSALReply(user, text, resultCount, searchme):
     ]
 
 #    print('Slack Blockkit: ', slack_block_kit)
-    elements = []
+    searchButtons = []
     count = 0
     for keyPhraseTuple in extractedKeyPhrases:
         keyPhrase = keyPhraseTuple[0]
@@ -311,12 +337,12 @@ def constructSALReply(user, text, resultCount, searchme):
             searchme = keyPhrase
         count += 1    
 
-        elements.append(
+        searchButtons.append(
             {
                 "type": "button",
                 "text": {
                     "type": "plain_text",
-                    "text": keyPhrase + " " + str(weight)
+                    "text": keyPhrase + " (" + str(weight) + ")"
                 },
     			"style": thisButtonStyle,
                 "value": keyPhrase,
@@ -325,7 +351,7 @@ def constructSALReply(user, text, resultCount, searchme):
     slack_block_kit.append(
         {
             "type": "actions",
-            "elements": elements
+            "elements": searchButtons
         }
     )
     slack_block_kit.append(
@@ -333,11 +359,14 @@ def constructSALReply(user, text, resultCount, searchme):
 			"type": "divider"
 		}
     )
+
 #    print('Slack Blockkit before search: ', slack_block_kit)
     resultLinks = searchSlackMessages(searchme, NUM_SEARCH_RESULTS, 1)
-    linksString = ''
+    linksString = 'Results from my memory banks:\n'
+    count = 1
     for thisPermaLink in resultLinks:
-        linksString += thisPermaLink + '\n'
+        linksString += "<" + thisPermaLink + "|" + searchme + " post " + str(count) + ">\n"
+        count += 1
     slack_block_kit.append(
        {
             "type": "section",
@@ -347,8 +376,12 @@ def constructSALReply(user, text, resultCount, searchme):
             }
         }
     )
-    print('Slack Blockkit after search: ', slack_block_kit)
-
+    slack_block_kit.append(
+        {
+			"type": "divider"
+		}
+    )
+#    print('Slack Blockkit after search: ', slack_block_kit)
     return slack_block_kit
 
 
@@ -442,9 +475,10 @@ if __name__ == "__main__":
 
     print("About to go threading!")
     event = {
-        'text': 'What is lambda and serverless?', 
+        'text': 'cocktail or tequila?', 
         'channel': 'test', 
-        'ts': '1616474040.077300',
+#        'ts': '1616474040.077300',
+        'ts': '1616557957.119300', 
         'user': 'U5FGEALER'
         }
     handleAsynchSALResponse(event, 3)
