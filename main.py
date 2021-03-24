@@ -31,16 +31,14 @@ def getGCPSecretKey(secretname):
 
 SLACK_BOT_TOKEN = getGCPSecretKey('SLACK_BOT_TOKEN')
 SLACK_USER_TOKEN = getGCPSecretKey('SLACK_USER_TOKEN')
-
 SLACK_WEB_CLIENT_BOT = WebClient(token=SLACK_BOT_TOKEN) 
 SLACK_WEB_CLIENT_USER = WebClient(token=SLACK_USER_TOKEN) 
-
 
 #For Slack Search API: https://api.slack.com/methods/search.messages
 SLACK_SEARCH_URL = 'https://slack.com/api/search.messages'
 
 #Number of search results to return - if more than 5, Slack will not unfural block because to big. Yeah dumb.
-NUM_SEARCH_RESULTS = 5
+NUM_SEARCH_RESULTS = 3
 
 #TEST_STRINGS = [
 #    "Anyone here use Copper CRM at their company? I’m working with two sales consultants (one is used to Salesforce and the other is used to Hubspot). I personally liked Copper cause it sits on top of Gmail. I’d rather use what the salespeople want to use, but in this case there’s no consensus lol.",
@@ -54,8 +52,8 @@ RAKE_OBJECT = RAKE.Rake(RAKE.SmartStopList())
 ENDPOINT_URL = "https://us-west2-sal9000-307923.cloudfunctions.net/keyphraseExtraction?message="
 
 TEST_CHANNEL_ID = 'GUEPXFVDE'
-SAL_IMAGE = 'https://lh3.googleusercontent.com/pw/ACtC-3daTgsFLR9jBLgulqfYWmqymWm4FzZ16dxepd-X2bXxnJ2gaAe3qo0T5-HvTV42-UGlESQogwU-yNen10-OUGP17BdrY8jf7TAe0vdOzQS57wqNpltdpWSCjapw8fh68ksvuhOpUnu5S2fCoOVvbbmbng=w883-h398-no?authuser=0'
-
+SAL_IMAGE = 'https://bit.ly/39eK1bY'
+SAL_THIN_IMAGE = 'https://bit.ly/3vQjA65'
 def RAKEPhraseExtraction(extractString):
     return RAKE_OBJECT.run(extractString)
 
@@ -114,6 +112,7 @@ def keyphraseExtraction(request):
     
     keyPhrases = extractTopPhrasesRAKE(rakeme, returnjson)
     return str(keyPhrases)
+
 
 # EventSubscription detected a top post in channel, SAL9000 to extract KeyPhrase, Search and Respond
 # Slack Event webhook: https://us-west2-sal9000-307923.cloudfunctions.net/respondToPost
@@ -228,7 +227,6 @@ def handleSALResponse(event, rtnCount):
     block = constructSALReply(user, text, rtnCount, '')
     response = postBlockToSlackChannel(channel_id, ts, '', block, text)
 
-
 #Posts a String message to Slack channel
 def postMessageToSlackChannel(channel, ts, text):
     # Test send message to 'test' channel
@@ -245,24 +243,27 @@ def postMessageToSlackChannel(channel, ts, text):
     return response    
 
 #Posts a Block to parent post thread_ts.  
-# If this_ts > 0, this is a user button push, delete the block and create new with text search
+# If this_ts > 0, this is a user button push, update the existing block with with new search results
 def postBlockToSlackChannel(channel, thread_ts, this_ts, block, text):
     response = ''
     try:
-        if len(this_ts) > 0: # Button push of existing block, delete it then re-post
-            print('delete/repost existing block to thread because this_ts:', this_ts)
-            response = SLACK_WEB_CLIENT_BOT.chat_delete(
-            channel = channel,
-            ts=this_ts,
+        if len(this_ts) == 0: 
+            print('posting new block to thread:', block)
+            response = SLACK_WEB_CLIENT_BOT.chat_postMessage(
+                channel = channel,
+                thread_ts=thread_ts,
+                text = text,
+                blocks = block
+            )
+        else: # user button push of existing block, update
+            print('update existing block to thread because this_ts:', this_ts)
+            response = SLACK_WEB_CLIENT_BOT.chat_update(
+                channel = channel,
+                ts=this_ts,
+                blocks = block,
+                attachments=[] #zero out attachments just in case
             )
 
-        print('posting new block to thread:', block)
-        response = SLACK_WEB_CLIENT_BOT.chat_postMessage(
-            channel = channel,
-            thread_ts=thread_ts,
-            text = text,
-            blocks = block
-            )
     except SlackApiError as e:
         # You will get a SlackApiError if "ok" is False
         print('error postBlockToSlackChannel:', e)
@@ -270,61 +271,32 @@ def postBlockToSlackChannel(channel, thread_ts, this_ts, block, text):
     return response    
 
 # This method will construct the entire SAL 9001 Response, may be Boxkit
-"""
-    CAN'T USE FULL IMAGE BLOCK BECAUSE SLACK WON'T UNFURL ANY LINKS
-    slack_block_kit.append(
-        {
-			"type": "image",
-			"block_id": "sal_image",
-			"image_url": SAL_IMAGE,
-			"alt_text": "SAL 9001"
-        }
-    )
-    slack_block_kit.append(
-        {
-			"type": "divider"
-		}
-    )
-
-"""
 def constructSALReply(user, text, resultCount, searchme):
-
     extractedKeyPhrases = extractTopPhrasesRAKE(text, 1)
-    count = 0
-#    print('who is ', user)
-#    whoami = SLACK_WEB_CLIENT_BOT.users_info(user=user)
-#    print('whoami is ', whoami)
-#    username = whoami['user']['name'];
-#    print('username is ', username)
     if(len(extractedKeyPhrases) < 0):
-        return "Hello @" + username + " I don't know what you want"
+        return "Hello <@" + user + "> I don't know what you want"
 
-    returnStr="Hello <@" + user +"> please pick one of the following keyphrase for me to search my memory banks:\n"
+    returnStr="Hello <@" + user +"> please pick a keyphrase for me to search my memory banks:\n"
 
     slack_block_kit = [
-		{
-			"type": "divider"
-		},
+        {
+			"type": "image",
+			"block_id": "sal_THIN_image",
+			"image_url": SAL_THIN_IMAGE,
+			"alt_text": "SAL 9001"
+        },
         {
             "type": "section",
             "text": {
                 "type": "mrkdwn",
                 "text": returnStr
-			},
-			"accessory": {
-				"type": "image",
-				"image_url": SAL_IMAGE,
-				"alt_text": "SAL_IMAGE"
 			}
-        },
-        {
-			"type": "divider"
-		},
+        }
     ]
 
 #    print('Slack Blockkit: ', slack_block_kit)
-    searchButtons = []
     count = 0
+    searchButtons = []
     for keyPhraseTuple in extractedKeyPhrases:
         keyPhrase = keyPhraseTuple[0]
         weight = keyPhraseTuple[1]
@@ -354,69 +326,27 @@ def constructSALReply(user, text, resultCount, searchme):
             "elements": searchButtons
         }
     )
-    slack_block_kit.append(
-        {
-			"type": "divider"
-		}
-    )
-
 #    print('Slack Blockkit before search: ', slack_block_kit)
-    resultLinks = searchSlackMessages(searchme, NUM_SEARCH_RESULTS, 1)
-    linksString = 'Results from my memory banks:\n'
+    searchResults = searchSlackMessages(searchme, NUM_SEARCH_RESULTS, 1)
+    searchResultsString = ''
     count = 1
-    for thisPermaLink in resultLinks:
-        linksString += "<" + thisPermaLink + "|" + searchme + " post " + str(count) + ">\n"
+    for thisSearchResult in searchResults['messages']['matches']:
+        thisUser = thisSearchResult['user']
+        searchResultsString += "<" + thisSearchResult['permalink'] + "|" + searchme + " post " + str(count) + "> from <@"+ thisUser+">\n"
         count += 1
+    if len(searchResultsString) == 0:
+        searchResultsString = "I'm sorry " + user + ">. I'm afraid I can't do that."    
     slack_block_kit.append(
        {
             "type": "section",
             "text": {
                 "type": "mrkdwn",
-                "text": linksString
+                "text": searchResultsString
             }
         }
     )
-    slack_block_kit.append(
-        {
-			"type": "divider"
-		}
-    )
 #    print('Slack Blockkit after search: ', slack_block_kit)
     return slack_block_kit
-
-
-EXAMPLE_BLOCK = [
-		{
-			"type": "section",
-			"text": {
-				"type": "mrkdwn",
-				"text": "You have a new request:\n*<fakeLink.toEmployeeProfile.com|Fred Enriquez - New device request>*"
-			}
-		},
-		{
-			"type": "actions",
-			"elements": [
-				{
-					"type": "button",
-					"text": {
-						"type": "plain_text",
-						"text": "Approve"
-					},
-					"style": "primary",
-					"value": "click_me_123"
-				},
-				{
-					"type": "button",
-					"text": {
-						"type": "plain_text",
-						"text": "Deny"
-					},
-					"style": "danger",
-					"value": "click_me_123"
-				}
-			]
-		}
-]
 
 # defining a params dict for the parameters to be sent to the API 
 # https://api.slack.com/methods/search.messages
@@ -424,18 +354,13 @@ EXAMPLE_BLOCK = [
 # arguments
 # query=text, count=20, highlight=true, page=1, sort=score/timestamp, sort_dir=desc/asc, team_id=T1234567890
 #
-# Return a lit of permalinks of matched results
-
+# Returns json of results as described: https://api.slack.com/methods/search.messages  
 def searchSlackMessages(text, resultCount, page):
-    results = []
     response = SLACK_WEB_CLIENT_USER.search_messages(query=text, sort='score', sor_dir='desc', count=resultCount, page=page) 
 #    print ('search response: ', response)
-    for match in response['messages']['matches']:
-        results.append(match['permalink'])
-    return results
+    return response
 
-
-
+# Main for commandline run and quick tests
 if __name__ == "__main__":
     print('found SLACK_BOT_TOKEN:', SLACK_BOT_TOKEN)
     print('found SLACK_USER_TOKEN:', SLACK_USER_TOKEN)
