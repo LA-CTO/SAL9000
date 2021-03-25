@@ -2,11 +2,10 @@
 # howto: https://towardsdatascience.com/extracting-keyphrases-from-text-rake-and-gensim-in-python-eefd0fad582f
 # 
 # Deployed to Google CLoud local - run from repo root dir:
-# gcloud functions deploy keyphraseExtraction --runtime python39 --trigger-http --allow-unauthenticated --project=sal9000-307923 --region=us-west2
-# Deploy from github:
-# gcloud functions deploy keyphaseExtraction --project=sal9000-307923 --source=https://source.developers.google.com/projects/sal9000-307923/repos/github_genechuang_sal9000/moveable-aliases/main/paths// --runtime=python39 --trigger-http --allow-unauthenticated --region=us-west2
-#
-# Call functionl: https://us-west2-sal9000-307923.cloudfunctions.net/keyphraseExtraction?message=helloSal9000
+# gcloud functions deploy handleEvent --runtime python39 --trigger-http --allow-unauthenticated --project=sal9000-307923 --region=us-west2
+# url: https://us-west2-sal9000-307923.cloudfunctions.net/handleEvent
+
+# keywordExtraction API call: https://us-west2-sal9000-307923.cloudfunctions.net/keyphraseExtraction?message=helloSal9000
 #  
 
 import json
@@ -19,6 +18,8 @@ from google.cloud import secretmanager
 from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
 from threading import Thread
+import time
+from datetime import datetime
 
 # TODO:  Put SLACK_BOT_TOKEN and SLACK_USER_TOKEN in Google Secret Manager https://dev.to/googlecloud/using-secrets-in-google-cloud-functions-5aem
 client = secretmanager.SecretManagerServiceClient()
@@ -37,21 +38,25 @@ SLACK_WEB_CLIENT_USER = WebClient(token=SLACK_USER_TOKEN)
 #For Slack Search API: https://api.slack.com/methods/search.messages
 SLACK_SEARCH_URL = 'https://slack.com/api/search.messages'
 
-#Number of search results to return - if more than 5, Slack will not unfural block because to big. Yeah dumb.
-NUM_SEARCH_RESULTS = 3
+#Number of search results to return
+#if more than 5, Slack will not unfural block because to big. Yeah dumb.
+NUM_SEARCH_RESULTS = 20
 
 #TEST_STRINGS = [
 #    "Anyone here use Copper CRM at their company? I’m working with two sales consultants (one is used to Salesforce and the other is used to Hubspot). I personally liked Copper cause it sits on top of Gmail. I’d rather use what the salespeople want to use, but in this case there’s no consensus lol.",
 #    "Are there any opinions on accounting systems / ERP's? We're using SAP Business One (aka Baby SAP) and need to upgrade to something a bit more full featured. Personally I find the SAP consulting ecosystem rather abysmal in terms of talent, looking at netsuite as an alternative but curious to know what others are using / we should be looking at."
 #    ]
 
-TEST_STRINGS = ["What is redis?"]
+TEST_STRINGS = ["What is redis vs mongodb?"]
+TEST_USER = 'U5FGEALER' # Gene
+TEST_TS = '1616650666.157000'
+TEST_CHANNEL_ID = 'GUEPXFVDE' #test
 
 STOPWORDS_LIST=RAKE.SmartStopList()
 RAKE_OBJECT = RAKE.Rake(RAKE.SmartStopList())
 ENDPOINT_URL = "https://us-west2-sal9000-307923.cloudfunctions.net/keyphraseExtraction?message="
 
-TEST_CHANNEL_ID = 'GUEPXFVDE'
+SAL_USER = 'U01R035QE3Z'
 SAL_IMAGE = 'https://bit.ly/39eK1bY'
 SAL_THIN_IMAGE = 'https://bit.ly/3vQjA65'
 def RAKEPhraseExtraction(extractString):
@@ -113,154 +118,107 @@ def keyphraseExtraction(request):
     keyPhrases = extractTopPhrasesRAKE(rakeme, returnjson)
     return str(keyPhrases)
 
-
+# Event handler for two types of events:
+# 1) New message to public channel (message.channels) or private channel (message.groups), events registered here: https://api.slack.com/apps/A01R8CEGVMF/event-subscriptions?
 # EventSubscription detected a top post in channel, SAL9000 to extract KeyPhrase, Search and Respond
-# Slack Event webhook: https://us-west2-sal9000-307923.cloudfunctions.net/respondToPost
-# https://api.slack.com/events/message.groups
-# Deployed to Google CLoud local - run from repo root dir:
-# gcloud functions deploy respondToPost --runtime python39 --trigger-http --allow-unauthenticated --project=sal9000-307923 --region=us-west2
 #
-# Sample request: {'token': '41px5FTEvkFHVLe5rCf7KQyU', 'team_id': 'T5FGEAL8M', 'api_app_id': 'A01R8CEGVMF', 'event': {'client_msg_id': '566327fd-2d22-4255-a72a-1c885d593d1c', 'type': 'message', 'text': 'SAL 9001 are you reading this message to a PRIVATE channel in GCP function? I subscribed to message.groups not message.channels <https://api.slack.com/apps/A01R8CEGVMF/event-subscriptions>', 'user': 'U5FGEALER', 'ts': '1616434450.064100', 'team': 'T5FGEAL8M', 'blocks': [{'type': 'rich_text', 'block_id': 'Qpo', 'elements': [{'type': 'rich_text_section', 'elements': [{'type': 'text', 'text': 'SAL 9001 are you reading this message to a PRIVATE channel in GCP function? I subscribed to message.groups not message.channels '}, {'type': 'link', 'url': 'https://api.slack.com/apps/A01R8CEGVMF/event-subscriptions'}]}]}], 'channel': 'GUEPXFVDE', 'event_ts': '1616434450.064100', 'channel_type': 'group'}, 'type': 'event_callback', 'event_id': 'Ev01SS5E8A6L', 'event_time': 1616434450, 'authorizations': [{'enterprise_id': None, 'team_id': 'T5FGEAL8M', 'user_id': 'U01R035QE3Z', 'is_bot': True, 'is_enterprise_install': False}], 'is_ext_shared_channel': False, 'event_context': '1-message-T5FGEAL8M-GUEPXFVDE'}
-
-def respondToPost(request):
-    """Responds to any HTTP request.
-    Args:
-        request (flask.Request): HTTP request object.
-    Returns:
-        The response text or any set of values that can be turned into a
-        Response object using
-        `make_response <https://flask.palletsprojects.com/en/1.1.x/api/#flask.Flask.make_response>`.
-    """
-    request_json = request.get_json()
-    print("main.respondToPost called with request: ", request_json)
-    if request_json and 'challenge' in request_json:
-        #Slack url_verification challenge https://api.slack.com/events/url_verification
-        return request_json['challenge']
-
-    event = request_json['event']
-    if event:
-        if 'bot_id' in event:
-            print('This is a bot message so not responding to it')
-        elif 'thread_ts' in event:
-            print('This is a thread message so not responding to it')
-        elif event.get("subtype"):
-            print('This is subtype so not repsponding to it: ', event.get("subtype"))
-        elif 'text' in event:
-            handleAsynchSALResponse(event, NUM_SEARCH_RESULTS)
-        else:
-            print("This message request fell through all filters, so not responding to it")
-    else:
-            print("This message has no event element?? Doing nothing...")
-
-    return json.dumps({'success':True}), 200, {'ContentType':'application/json'} 
-
+# 2) Interactive user push search button. Registered here: https://api.slack.com/apps/A01R8CEGVMF/interactive-messages
 # Use selected a keyphrase from SAL9001 first response, perform Search and Respond with search results
-# Slack Event webhook: https://us-west2-sal9000-307923.cloudfunctions.net/respondToSearchButton
-# Deployed to Google CLoud local - run from repo root dir:
-# gcloud functions deploy respondToSearchButton --runtime python39 --trigger-http --allow-unauthenticated --project=sal9000-307923 --region=us-west2
 #
+# Slack handleEvent webhook: https://us-west2-sal9000-307923.cloudfunctions.net/handleEvent
+# Deployed to Google CLoud local - run from repo root dir:
+# gcloud functions deploy handleEvent --runtime python39 --trigger-http --allow-unauthenticated --project=sal9000-307923 --region=us-west2
+#
+def handleEvent(request):
+    request_json = request.get_json()
+    eventAttributes = {}
+    if request_json: # GET - must be new post event message.channels or message.groups
+        print("main.handleEvent GET message.channels with request: ", request_json)
+        if 'challenge' in request_json:
+        #Slack url_verification challenge https://api.slack.com/events/url_verification
+            return request_json['challenge']
+        event = request_json['event']
+        if event:
+            if 'bot_id' in event:
+                print('This is a bot message so not responding to it')
+            elif 'thread_ts' in event:
+                print('This is a thread message so not responding to it')
+            elif event.get("subtype"):
+                print('This is subtype so not repsponding to it: ', event.get("subtype"))
+            elif 'text' in event:
+                eventAttributes = {
+                    'user': event['user'],
+                    'channel_id': event['channel'],
+                    'thread_ts': event['ts'],
+                    'text': event['text'],
+                    'searchme': ''
+                }
+            else:
+                print("This message request fell through all filters, so not responding to it")
+        else:
+            print("This message has no event element?? Doing nothing...")
+    else: # POST - Interactive event
+        payload = json.loads(request.form.get('payload'))
+        print('main.handleEven POST Interactive Event with payload: ', payload)
+        payload_type = payload["type"]
+        if payload_type == "block_actions":
+            eventAttributes = {
+                'user': payload['user']['id'],
+                'channel_id': payload['channel']['id'],
+                'thread_ts': payload['message']['thread_ts'], 
+                'this_ts': payload['message']['ts'], 
+                'searchme': payload["actions"][0]['value'],
+                'text': payload['message']['text']
+            }
+            print('Interactive eventAttributes:', eventAttributes)
 
-def respondToSearchButton(request):
-    """Responds to any HTTP request.
-    Args:
-        request (flask.Request): HTTP request object.
-    Returns:
-        The response text or any set of values that can be turned into a
-        Response object using
-        `make_response <https://flask.palletsprojects.com/en/1.1.x/api/#flask.Flask.make_response>`.
-    """
-    print("main.respondToSearchButton called with request: ", request)
-
- # Get data from payload stolen from Phoebe: https://github.com/TotoroSyd/heybot/blob/master/heybot_v2.py
-
-    #solution janice https://medium.com/@janicejabraham/creating-a-slack-app-using-the-events-api-and-slack-dialog-368ea54273af
-    payload = json.loads(request.form.get('payload'))
-    print('respondToSearch got payload: ', payload)
-    payload_type = payload["type"]
-    print('respondToSearch payload_type: ', payload_type)
-    # Initiate channel_id
-
-    if payload_type == "block_actions":
-        # get channel_id
-        channel_id = payload["channel"]["id"]
-        # Get action id to track button action
-        actions = payload["actions"][0]
-        value = actions["value"]
-        searchme = value
-
-        print('Gonna refresh the block with new search:', searchme)
-        handleAsynchButtonResponse(payload, NUM_SEARCH_RESULTS, searchme)
+    if len(eventAttributes) > 0:
+        constructAndPostBlock(eventAttributes)
     return json.dumps({'success':True}), 200, {'ContentType':'application/json'} 
-
-def handleAsynchButtonResponse(payload, rtnCount, searchme):
-    thr_response = Thread(target=handleButtonResponse,
-                          args=[payload, rtnCount, searchme])
-    thr_response.start()
-
-def handleButtonResponse(payload, rtnCount, searchme):
-    print('about to extract some info from payload: ', payload)
-    user = payload['user']['id']
-    channel_id = payload['channel']['id']
-    thread_ts = payload['message']['thread_ts'] 
-    this_ts = payload['message']['ts'] 
-    text = payload['message']['text']
-
-    block = constructSALReply(user, text, rtnCount, searchme)
-    print('Modified block: ', block)
-    response = postBlockToSlackChannel(channel_id, thread_ts, this_ts, block, text)
-
 
 # Create a thread to handle the request and respond immediately
 # A response time of longer than 3 seconds causes a timeout 
 # error message in Slack
-def handleAsynchSALResponse(event, rtnCount):
-    thr_response = Thread(target=handleSALResponse,
-                          args=[event, 3])
+# I don't think this is needed and causing weird stuff in Google Function runtime
+def handleEventAsync(eventAttributes):
+    thr_response = Thread(target=constructAndPostBlock,
+                          args=[eventAttributes])
     thr_response.start()
 
-def handleSALResponse(event, rtnCount):
-    text = event['text']
-    channel_id = event['channel']
-    ts = event['ts']
-    user = event['user']
-
-    block = constructSALReply(user, text, rtnCount, '')
-    response = postBlockToSlackChannel(channel_id, ts, '', block, text)
-
-#Posts a String message to Slack channel
-def postMessageToSlackChannel(channel, ts, text):
-    # Test send message to 'test' channel
-    try:
-        response = SLACK_WEB_CLIENT_BOT.chat_postMessage(
-        channel = channel,
-        thread_ts=ts,
-        text = text
-        )
-    except SlackApiError as e:
-        # You will get a SlackApiError if "ok" is False
-        print('error sending message to slack channel:', e)
-        assert e.response["error"]    # str like 'invalid_auth', 'channel_not_found'
-    return response    
+# Construct a Slack block and post/update it
+def constructAndPostBlock(eventAttributes):
+    start = time.time()
+    block = constructBlock(eventAttributes)
+    end = time.time()
+    print('constructBlock time: ' + str(end-start))
+    response = postBlockToSlackChannel(eventAttributes, block)
+    end2 = time.time()
+    print('postBlockToSlackChannel time: ' + str(end2-end))
 
 #Posts a Block to parent post thread_ts.  
 # If this_ts > 0, this is a user button push, update the existing block with with new search results
-def postBlockToSlackChannel(channel, thread_ts, this_ts, block, text):
+def postBlockToSlackChannel(eventAttributes, block):
+    channel_id = eventAttributes['channel_id']
+    text = eventAttributes['text']
     response = ''
     try:
-        if len(this_ts) == 0: 
+        if 'this_ts' not in eventAttributes: 
             print('posting new block to thread:', block)
+            thread_ts = eventAttributes['thread_ts']
             response = SLACK_WEB_CLIENT_BOT.chat_postMessage(
-                channel = channel,
+                channel = channel_id,
                 thread_ts=thread_ts,
                 text = text,
                 blocks = block
             )
         else: # user button push of existing block, update
+            this_ts = eventAttributes['this_ts']
             print('update existing block to thread because this_ts:', this_ts)
             response = SLACK_WEB_CLIENT_BOT.chat_update(
-                channel = channel,
+                channel = channel_id,
                 ts=this_ts,
                 blocks = block,
+                text = text,
                 attachments=[] #zero out attachments just in case
             )
 
@@ -270,8 +228,13 @@ def postBlockToSlackChannel(channel, thread_ts, this_ts, block, text):
         assert e.response["error"]    # str like 'invalid_auth', 'channel_not_found'
     return response    
 
-# This method will construct the entire SAL 9001 Response, may be Boxkit
-def constructSALReply(user, text, resultCount, searchme):
+# This method will construct the Slack Block 
+def constructBlock(eventAttributes):
+    text = eventAttributes['text']
+    user = eventAttributes['user']
+    searchme = ''
+    if 'searchme' in eventAttributes:
+        searchme = eventAttributes['searchme']
     extractedKeyPhrases = extractTopPhrasesRAKE(text, 1)
     if(len(extractedKeyPhrases) < 0):
         return "Hello <@" + user + "> I don't know what you want"
@@ -326,16 +289,30 @@ def constructSALReply(user, text, resultCount, searchme):
             "elements": searchButtons
         }
     )
-#    print('Slack Blockkit before search: ', slack_block_kit)
+
     searchResults = searchSlackMessages(searchme, NUM_SEARCH_RESULTS, 1)
     searchResultsString = ''
     count = 1
+    thread_ts = ''
+    if 'thread_ts' in eventAttributes:
+        thread_ts = eventAttributes['thread_ts']
     for thisSearchResult in searchResults['messages']['matches']:
         thisUser = thisSearchResult['user']
-        searchResultsString += "<" + thisSearchResult['permalink'] + "|" + searchme + " post " + str(count) + "> from <@"+ thisUser+">\n"
+        thisUserName = thisSearchResult['username']
+        this_ts = thisSearchResult['ts']
+        thisDate = datetime.fromtimestamp(int(this_ts.split(".")[0])).strftime('%m-%d-%y')
+
+        if SAL_USER == thisUser: #skip posts by SAL
+            continue
+        if thread_ts == this_ts: #skip this parent post
+            continue
+#Don't @user in search results, can get annying
+#        searchResultsString += "<" + thisSearchResult['permalink'] + "|" + searchme + " post " + str(count) + "> from <@"+ thisUser+">\n"
+        searchResultsString += "<" + thisSearchResult['permalink'] + "|" + str(count) + " " + searchme + "> " + thisDate + " from "+ thisUserName+ "\n"
         count += 1
+
     if len(searchResultsString) == 0:
-        searchResultsString = "I'm sorry " + user + ">. I'm afraid I can't do that."    
+        searchResultsString = "I'm sorry <@" + user + ">. I'm afraid I can't do that."    
     slack_block_kit.append(
        {
             "type": "section",
@@ -345,7 +322,7 @@ def constructSALReply(user, text, resultCount, searchme):
             }
         }
     )
-#    print('Slack Blockkit after search: ', slack_block_kit)
+
     return slack_block_kit
 
 # defining a params dict for the parameters to be sent to the API 
@@ -356,6 +333,8 @@ def constructSALReply(user, text, resultCount, searchme):
 #
 # Returns json of results as described: https://api.slack.com/methods/search.messages  
 def searchSlackMessages(text, resultCount, page):
+# Limit search to in #techandtools only for now
+#    text = "in:techandtools " + text
     response = SLACK_WEB_CLIENT_USER.search_messages(query=text, sort='score', sor_dir='desc', count=resultCount, page=page) 
 #    print ('search response: ', response)
     return response
@@ -394,17 +373,18 @@ if __name__ == "__main__":
 
     #postMessageToSlackChannel('test', '', 'Hello from SAL 9001! :tada:')        
 
-    # Test Slack Search
-    SALsays = constructSALReply('U5FGEALER', 'serverless', NUM_SEARCH_RESULTS, '')
-    print("SALsays: ", SALsays)
+    # Test Block construction which includes Slack Search
+    # SALsays = constructBlock(TEST_USER, 'serverless', '')
+    # print("SALsays: ", SALsays)
 
-    print("About to go threading!")
-    event = {
-        'text': 'cocktail or tequila?', 
-        'channel': 'test', 
-#        'ts': '1616474040.077300',
-        'ts': '1616557957.119300', 
-        'user': 'U5FGEALER'
+    # Test Constructing and posting new block to Slack
+    eventAttributes = {
+        'text': TEST_STRINGS[0], 
+        'channel_id': TEST_CHANNEL_ID, 
+        'thread_ts': TEST_TS, 
+        'user': TEST_USER
         }
-    handleAsynchSALResponse(event, 3)
-
+    start = time.time()    
+    constructAndPostBlock(eventAttributes)
+    end = time.time()
+    print('constructAndPostBlock time:', str(end-start))
