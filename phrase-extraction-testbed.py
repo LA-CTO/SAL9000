@@ -19,9 +19,8 @@ SLACKER_STOPWORDS_SPREADSHEET_ID = '1TpJQA_M6Ff9YLTZ4WlRFTlbuDa-s0qD9v2RHRHkpg4M
 STOPWORDS_URL = 'http://ir.dcs.gla.ac.uk/resources/linguistic_utils/stop_words'
 JSON_FILE_ROOT_DIR = 'd:\\slackers-archive\\'
 #JSON_FILE_DIRS_ARRAY = ['techandtools', 'ai-blockchain-ar-vr', 'announcements', 'architecture-and-budget-review', 'conways-law', 'events', 'kubernetes', 'opportunity-hiring', 'random', 'slacker-angels', 'startups', 'wolves-of-wall-street-3', 'women-in-tech']
-JSON_FILE_DIRS_ARRAY = ['gene']
-TEST_STRING = "I'm looking for someone to put on a business etiquette workshop. Does anyone have recommendations? Bonus if the person/ company has experience with an engineering audience"
-
+JSON_FILE_DIRS_ARRAY = ['techandtools']
+TEST_STRING = "StackOverflow Teams offer a free tier for 50 users.  Too bad we’ve got too many members (750) to make the switch, but for you small startups you can set up an internal StackOverflow for free: <https:\/\/techcrunch.com\/2021\/03\/17\/stack-overflow-adds-a-free-tier-to-its-fast-growing-teams-service\/|https:\/\/techcrunch.com\/2021\/03\/17\/stack-overflow-adds-a-free-tier-to-its-fast-growing-teams-service\/>"
 # textrazor api key
 textrazor.api_key = "3d8ebf5664cb85a14bd5a2a04c11e53603a89595304d7eb84098929f"
 
@@ -148,25 +147,35 @@ boring_stopwords = worksheet1.col_values(1)
 print('number of slacker stopwords: ', len(slacker_stopwords))
 print('number of boring stopwords: ', len(boring_stopwords))
 
+# Call TextRazer API
+#analyzeTextRazer(TEST_STRING)
+#raked = extractTopPhraseRAKE(TEST_STRING, boring_stopwords)
+#print('raked after:', raked)
+
+
 
 all_messages = ''
 all_tup_list = []
 num_messages = 0
 num_phrases = 0
 
-# Call TextRazer API
-analyzeTextRazer(TEST_STRING)
-raked = extractTopPhraseRAKE(TEST_STRING, boring_stopwords)
-print('raked after:', raked)
-
-exit()
+#RAKE_OBJECT = RAKE.Rake(RAKE.SmartStopList()) slacker_stopwords
+RAKE_OBJECT = RAKE.Rake(slacker_stopwords)
+# Initializing Dictionary
+urlCounter = {}
+keyPhraseCounter = {}
+userMessageCounter = {}
+userKeyPhraseCounter = {}
 
 for channel_dir in JSON_FILE_DIRS_ARRAY:
     channel_dir = JSON_FILE_ROOT_DIR + channel_dir + "\\"
     print("Processing dir: ", channel_dir)
+
+    textcounter=0
+
     for json_file in os.listdir(channel_dir):
         json_file = channel_dir + json_file
-        #print("Processing file: ", json_file)
+#        print("Processing file: ", json_file)
         with open(json_file, encoding="utf-8") as f:
             json_data = json.load(f)
 
@@ -174,22 +183,85 @@ for channel_dir in JSON_FILE_DIRS_ARRAY:
         #print(pretty_json)
 
         for this_json in json_data:
-            if this_json.get('type') == "message":
-                this_text = this_json.get('text')
-                if this_text:
-                    cleaned_this_text_array = basicCleanse(this_text, boring_stopwords)
-                    cleaned_this_text = ' '.join(cleaned_this_text_array)
-                    print('cleaned_this_text: ', cleaned_this_text)
-                    cleaned_sorteddict = sortTuple(RAKEPhraseExtraction(cleaned_this_text, slacker_stopwords))[-10:]
-                    print('cleaned_this_text keywords: ', cleaned_sorteddict)
+            if this_json.get('type') != "message":
+                continue
+            if 'bot_id' in this_json:
+#                print(this_json.get('bot_id') + " is a bot!")
+                continue
+            if 'subtype' in this_json:
+                subtype = this_json.get('subtype')
+                if "channel_join" == subtype:
+                    continue
+#                print("subtype: ", subtype)
+#            print('this_json:', this_json)
+            this_text = this_json.get('text')
+#            print("this_text: ", this_text)
+            if not this_text:
+                continue
+
+            textcounter+=1
+            thisUser = this_json.get('user')
+            userMessageCounter[thisUser] = userMessageCounter.get(thisUser, 0) + 1
+
+#            print('thisUser: ', thisUser)
+#            print("this_text:", this_text)
+            urlre = 'https?://(?:[-\w.]|(?:%[\da-fA-F]{2}))+'
+            urls = re.findall(urlre , this_text)
+            for url in urls:
+                url = url.split("?")[0]
+                url = url.split("//")[1]
+                urlCounter[url] = urlCounter.get(url, 0) + 1
+
+#            this_text = re.sub(r'^https?:\/\/.*[\r\n]*', '', this_text)
+            this_text = re.sub(r'<?http\S+', '', this_text)
+#            print("all urls: ", urls)
+#            print("stripped url text: ", this_text)
+
+#CLEANSE
+#            this_text = stripHTMLTags(this_text)
+#            this_text = this_text.lower()
+#            this_text = stripSlackUserID(this_text)
+
+            rakedTuple = RAKE_OBJECT.run(this_text, minCharacters = 2)
+#            print('rakedTuple:', rakedTuple)
+            for thisTuple in rakedTuple:
+                keyphrase = thisTuple[0]
+                keyPhraseCounter[keyphrase] = keyPhraseCounter.get(keyphrase, 0) + 1
+
+print("textcounter: ", textcounter)
+
+urlCounter = sorted(urlCounter.items(), key = lambda x: x[1], reverse = True)
+print("url count: ", len(urlCounter))
+
+keyPhraseCounter = sorted(keyPhraseCounter.items(), key = lambda x: x[1], reverse = True)
+#print("keyphrase count: ", keyPhraseCounter)
+print("keyphrase count: ", len(keyPhraseCounter))
+
+userMessageCounter = sorted(userMessageCounter.items(), key = lambda x: x[1], reverse = True)
+print("user message count: ", len(userMessageCounter))
+
+count=0
+for keyPhrase in keyPhraseCounter:
+    print(keyPhrase[0] + ":" + str(keyPhrase[1]))
+    count+=1
+    if count > 40:
+        break
 
 
-                    all_messages += '\n' + this_text
-                    num_messages +=1
+
+"""
+            cleaned_this_text_array = basicCleanse(this_text)
 
 
-sorteddict = basicKeywordExtraction(all_messages, slacker_stopwords)
+            cleaned_this_text = ' '.join(cleaned_this_text_array)
+            print('cleaned_this_text: ', cleaned_this_text)
+            cleaned_sorteddict = sortTuple(RAKEPhraseExtraction(cleaned_this_text))[-10:]
+            print('cleaned_this_text keywords: ', cleaned_sorteddict)
 
+            all_messages += '\n' + this_text
+            num_messages +=1
+
+sorteddict = basicKeywordExtraction(all_messages)
 
 #raked = RAKEPhraseExtraction(all_messages, boring_stopwords)
 #print('raked after:', raked)
@@ -217,3 +289,4 @@ print("dumping histogram to file...")
 with open('histogram.txt', 'w') as outfile:
     for s in sorteddict: 
         print(str(s), file=outfile)
+"""

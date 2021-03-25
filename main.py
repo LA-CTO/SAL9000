@@ -332,9 +332,6 @@ def searchSlackMessages(text, resultCount, page):
 
 # Main for commandline run and quick tests
 if __name__ == "__main__":
-    print('found SLACK_BOT_TOKEN:', SLACK_BOT_TOKEN)
-    print('found SLACK_USER_TOKEN:', SLACK_USER_TOKEN)
-
     for extractme in TEST_STRINGS:
         print('Raking:', extractme)
         raked = extractTopPhrasesRAKE(extractme, 0)
