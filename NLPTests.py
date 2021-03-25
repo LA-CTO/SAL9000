@@ -10,6 +10,9 @@
 
 import json
 import RAKE
+#from rake_nltk import Rake
+import spacy
+import pytextrank
 import requests
 from google.cloud import secretmanager
 from slack_sdk import WebClient
@@ -79,6 +82,12 @@ def extractTopPhrasesRAKE(stringArray, returnJSON):
             return sortedtuple[0][0]
         else:
             return ''
+
+#RAKE-NLTK
+def RAKENLTKPhaseExtraction(extractString):
+    r = Rake() # Uses stopwords for english from NLTK, and all punctuation characters
+    r.extract_keywords_from_text(extractString)
+    return r.get_ranked_phrases()[0:10]
 
 # Deployed to Google CLoud local - run from repo root dir:
 # gcloud functions deploy keyphraseExtraction --runtime python39 --trigger-http --allow-unauthenticated --project=sal9000-307923 --region=us-west2
@@ -341,6 +350,20 @@ if __name__ == "__main__":
         print('raked return top:', raked)
         raked = extractTopPhrasesRAKE(extractme, 1)
         print('raked return all:', raked)
+
+        print('Rake_NLTK results:', RAKENLTKPhaseExtraction(extractme))
+
+        print('PyTextRanking: ', extractme)
+        # load a spaCy model, depending on language, scale, etc.
+        nlp = spacy.load("en_core_web_sm")
+        # add PyTextRank to the spaCy pipeline
+        nlp.add_pipe("textrank", last=True)
+        doc = nlp(extractme)
+        # examine the top-ranked phrases in the document
+        print('PyTextRank:', doc._.phrases)
+        for p in doc._.phrases:
+            print("{:.4f} {:5d}  {}".format(p.rank, p.count, p.text))
+        #    print(p.chunks)
 
         #testing RESTFUL call to keyPhraseExtraction
 #        extractmeurl = ENDPOINT_URL + extractme
