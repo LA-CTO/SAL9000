@@ -8,54 +8,73 @@
 # keywordExtraction API call: https://us-west2-sal9000-307923.cloudfunctions.net/keyphraseExtraction?message=helloSal9000
 #  
 
+from datetime import datetime
+VERY_BEGINNING_TIME = datetime.utcnow()
+START_TIME = VERY_BEGINNING_TIME
+
 import json
 import RAKE
-import requests
-from google.cloud import secretmanager
+#from google.cloud import secretmanager
 from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
-from threading import Thread
-import time
-from datetime import datetime
+import threading
 
-# TODO:  Put SLACK_BOT_TOKEN and SLACK_USER_TOKEN in Google Secret Manager https://dev.to/googlecloud/using-secrets-in-google-cloud-functions-5aem
-client = secretmanager.SecretManagerServiceClient()
+def getTimeSpan(starttime, label):
+    endtime = datetime.utcnow()
+    print(str(endtime-starttime)[:-4] + " " + label)
+    return endtime
+
+START_TIME = getTimeSpan(START_TIME, 'import time')
 GCP_PROJECT_ID = "sal9000-307923"
 
+# TODO:  Put SLACK_BOT_TOKEN and SLACK_USER_TOKEN in Google Secret Manager https://dev.to/googlecloud/using-secrets-in-google-cloud-functions-5aem
+# TODO: SecretManager actually takes over 3 seconds to load module and look up secret keys!!  Gonna hardcode Slack OAuth tokens for now, if they
+# get stolen I'll just reissue new ones
+"""
+client = secretmanager.SecretManagerServiceClient()
+START_TIME = getTimeSpan(START_TIME, 'secretmanager.SecretManagerServiceClient90')
 def getGCPSecretKey(secretname):
     request = {"name": f"projects/{GCP_PROJECT_ID}/secrets/{secretname}/versions/latest"}
     response = client.access_secret_version(request)
     return response.payload.data.decode("UTF-8")
-
 SLACK_BOT_TOKEN = getGCPSecretKey('SLACK_BOT_TOKEN')
 SLACK_USER_TOKEN = getGCPSecretKey('SLACK_USER_TOKEN')
+"""
+SLACK_BOT_TOKEN = 'xoxb-185558360293-1850107830135-QELeF6bgCbyiykPdEZy79U4U'
+SLACK_USER_TOKEN = 'xoxp-185558360293-185558360501-1851986014151-368db494b5b89899643177604f81a010'
+
 SLACK_WEB_CLIENT_BOT = WebClient(token=SLACK_BOT_TOKEN) 
 SLACK_WEB_CLIENT_USER = WebClient(token=SLACK_USER_TOKEN) 
+
 
 #For Slack Search API: https://api.slack.com/methods/search.messages
 SLACK_SEARCH_URL = 'https://slack.com/api/search.messages'
 
 #Number of search results to return
 #if more than 5, Slack will not unfural block because to big. Yeah dumb.
-NUM_SEARCH_RESULTS = 20
+NUM_SEARCH_RESULTS = 12
 
 #TEST_STRINGS = [
 #    "Anyone here use Copper CRM at their company? I’m working with two sales consultants (one is used to Salesforce and the other is used to Hubspot). I personally liked Copper cause it sits on top of Gmail. I’d rather use what the salespeople want to use, but in this case there’s no consensus lol.",
 #    "Are there any opinions on accounting systems / ERP's? We're using SAP Business One (aka Baby SAP) and need to upgrade to something a bit more full featured. Personally I find the SAP consulting ecosystem rather abysmal in terms of talent, looking at netsuite as an alternative but curious to know what others are using / we should be looking at."
 #    ]
 
-TEST_STRINGS = ["What is redis vs mongodb?"]
+TEST_STRINGS = ["mongodb, snowflake, redshift, gcp, aws, new relic, data dog, datadog, zoom, slack, python, golang, cms, contentful, zendesk, ga, analytics, ml, mux, jwplayer, cognito, okta,"]
 TEST_USER = 'U5FGEALER' # Gene
-TEST_TS = '1616650666.157000'
+TEST_TS = '1616731334.191200'
 TEST_CHANNEL_ID = 'GUEPXFVDE' #test
 
 STOPWORDS_LIST=RAKE.SmartStopList()
 RAKE_OBJECT = RAKE.Rake(RAKE.SmartStopList())
+
 ENDPOINT_URL = "https://us-west2-sal9000-307923.cloudfunctions.net/keyphraseExtraction?message="
 
 SAL_USER = 'U01R035QE3Z'
 SAL_IMAGE = 'https://bit.ly/39eK1bY'
-SAL_THIN_IMAGE = 'https://bit.ly/3vQjA65'
+SAL_THIN_IMAGE = 'https://files.slack.com/files-pri/T5FGEAL8M-F01SXUR4CJD/sal_thin.jpg?pub_secret=97e5e68214'
+
+START_TIME = getTimeSpan(START_TIME, 'all initialization time')
+
 def RAKEPhraseExtraction(extractString):
     return RAKE_OBJECT.run(extractString)
 
@@ -68,17 +87,11 @@ def sortTuple(tup):
     return tup
 
 # Return the top weighed Phrases from RAKE of stringArray
-def extractTopPhrasesRAKE(stringArray, returnJSON):
+def extractKeyPhrasesRAKE(stringArray):
     raked = RAKEPhraseExtraction(stringArray)
 #    print("Raked results: ", raked)
-    sortedtuple = sortTuple(raked)[-10:]
-    if returnJSON:
-        return sortedtuple
-    else:
-        if sortedtuple and sortedtuple[0]:
-            return sortedtuple[0][0]
-        else:
-            return ''
+    sortedtuple = sortTuple(raked)[-20:]
+    return sortedtuple
 
 # Deployed to Google CLoud local - run from repo root dir:
 # gcloud functions deploy keyphraseExtraction --runtime python39 --trigger-http --allow-unauthenticated --project=sal9000-307923 --region=us-west2
@@ -106,7 +119,7 @@ def keyphraseExtraction(request):
     else:
         rakeme = ''
     
-    keyPhrases = extractTopPhrasesRAKE(rakeme, returnjson)
+    keyPhrases = extractKeyPhrasesRAKE(rakeme)
     return str(keyPhrases)
 
 # Event handler for two types of events:
@@ -124,7 +137,6 @@ def handleEvent(request):
     request_json = request.get_json()
     eventAttributes = {}
     if request_json: # GET - must be new post event message.channels or message.groups
-        print("main.handleEvent GET message.channels with request: ", request_json)
         if 'challenge' in request_json:
         #Slack url_verification challenge https://api.slack.com/events/url_verification
             return request_json['challenge']
@@ -137,6 +149,7 @@ def handleEvent(request):
             elif event.get("subtype"):
                 print('This is subtype so not repsponding to it: ', event.get("subtype"))
             elif 'text' in event:
+                print("main.handleEvent GET text: ", event['text'])
                 eventAttributes = {
                     'user': event['user'],
                     'channel_id': event['channel'],
@@ -153,38 +166,37 @@ def handleEvent(request):
         print('main.handleEven POST Interactive Event with payload: ', payload)
         payload_type = payload["type"]
         if payload_type == "block_actions":
+            text = payload['message']['text']
+            print("main.handleEvent POST text: ", text)
             eventAttributes = {
                 'user': payload['user']['id'],
                 'channel_id': payload['channel']['id'],
                 'thread_ts': payload['message']['thread_ts'], 
                 'this_ts': payload['message']['ts'], 
                 'searchme': payload["actions"][0]['value'],
-                'text': payload['message']['text']
+                'text': text
             }
-            print('Interactive eventAttributes:', eventAttributes)
 
     if len(eventAttributes) > 0:
-        constructAndPostBlock(eventAttributes)
+        constructAndPostBlockAsync(eventAttributes)
     return json.dumps({'success':True}), 200, {'ContentType':'application/json'} 
 
-# Create a thread to handle the request and respond immediately
-# A response time of longer than 3 seconds causes a timeout 
-# error message in Slack
-# I don't think this is needed and causing weird stuff in Google Function runtime
-def handleEventAsync(eventAttributes):
-    thr_response = Thread(target=constructAndPostBlock,
-                          args=[eventAttributes])
-    thr_response.start()
+
+# Asynchronously Construct a Slack block and post/update it
+def constructAndPostBlockAsync(eventAttributes):
+    thread = threading.Thread(target=constructAndPostBlock, args=[eventAttributes])
+    thread.start()
+
 
 # Construct a Slack block and post/update it
 def constructAndPostBlock(eventAttributes):
-    start = time.time()
+    startime = datetime.utcnow() 
     block = constructBlock(eventAttributes)
-    end = time.time()
-    print('constructBlock time: ' + str(end-start))
+    getTimeSpan(startime, 'constructBlock')
+    startime2 = datetime.utcnow() 
     response = postBlockToSlackChannel(eventAttributes, block)
-    end2 = time.time()
-    print('postBlockToSlackChannel time: ' + str(end2-end))
+    getTimeSpan(startime2, 'postBlockToSlackChannel')
+#    getTimeSpan(startime, 'constructAndPostBlock')
 
 #Posts a Block to parent post thread_ts.  
 # If this_ts > 0, this is a user button push, update the existing block with with new search results
@@ -194,7 +206,7 @@ def postBlockToSlackChannel(eventAttributes, block):
     response = ''
     try:
         if 'this_ts' not in eventAttributes: 
-            print('posting new block to thread:', block)
+###            print('posting new block to thread:', block)
             thread_ts = eventAttributes['thread_ts']
             response = SLACK_WEB_CLIENT_BOT.chat_postMessage(
                 channel = channel_id,
@@ -221,16 +233,18 @@ def postBlockToSlackChannel(eventAttributes, block):
 
 # This method will construct the Slack Block 
 def constructBlock(eventAttributes):
+    starttime = datetime.utcnow()
     text = eventAttributes['text']
     user = eventAttributes['user']
     searchme = ''
     if 'searchme' in eventAttributes:
         searchme = eventAttributes['searchme']
-    extractedKeyPhrases = extractTopPhrasesRAKE(text, 1)
+    extractedKeyPhrases = extractKeyPhrasesRAKE(text)
+
     if(len(extractedKeyPhrases) < 0):
         return "Hello <@" + user + "> I don't know what you want"
 
-    returnStr="Hello <@" + user +"> please pick a keyphrase for me to search my memory banks:\n"
+    greetings ="Hello <@" + user +"> please pick a keyphrase for me to search my memory banks: " + "\n"
 
     slack_block_kit = [
         {
@@ -243,7 +257,7 @@ def constructBlock(eventAttributes):
             "type": "section",
             "text": {
                 "type": "mrkdwn",
-                "text": returnStr
+                "text": greetings
 			}
         }
     ]
@@ -274,6 +288,7 @@ def constructBlock(eventAttributes):
                 "value": keyPhrase,
             }
         )
+
     slack_block_kit.append(
         {
             "type": "actions",
@@ -298,12 +313,15 @@ def constructBlock(eventAttributes):
         if thread_ts == this_ts: #skip this parent post
             continue
 #Don't @user in search results, can get annying
-#        searchResultsString += "<" + thisSearchResult['permalink'] + "|" + searchme + " post " + str(count) + "> from <@"+ thisUser+">\n"
-        searchResultsString += "<" + thisSearchResult['permalink'] + "|" + str(count) + " " + searchme + "> " + thisDate + " from "+ thisUserName+ "\n"
+        searchResultsString += "<" + thisSearchResult['permalink'] + "|" + thisDate + " " + searchme + "> " + " from "+ thisUserName+ "\n"
         count += 1
 
     if len(searchResultsString) == 0:
         searchResultsString = "I'm sorry <@" + user + ">. I'm afraid I can't do that."    
+
+    endtime = datetime.utcnow()
+    elapsestr = str(endtime-starttime)[:-4]
+    searchResultsString += "\nsearch time: " + elapsestr
     slack_block_kit.append(
        {
             "type": "section",
@@ -314,6 +332,8 @@ def constructBlock(eventAttributes):
         }
     )
 
+
+    
     return slack_block_kit
 
 # defining a params dict for the parameters to be sent to the API 
@@ -332,12 +352,13 @@ def searchSlackMessages(text, resultCount, page):
 
 # Main for commandline run and quick tests
 if __name__ == "__main__":
-    for extractme in TEST_STRINGS:
-        print('Raking:', extractme)
-        raked = extractTopPhrasesRAKE(extractme, 0)
-        print('raked return top:', raked)
-        raked = extractTopPhrasesRAKE(extractme, 1)
-        print('raked return all:', raked)
+    START_TIME = getTimeSpan(START_TIME, 'main start')
+    
+
+#    for extractme in TEST_STRINGS:
+#        print('Raking:', extractme)
+#        raked = extractKeyPhrasesRAKE(extractme)
+#        print('raked return top:', raked)
 
         #testing RESTFUL call to keyPhraseExtraction
 #        extractmeurl = ENDPOINT_URL + extractme
@@ -358,7 +379,7 @@ if __name__ == "__main__":
         'thread_ts': TEST_TS, 
         'user': TEST_USER
         }
-    start = time.time()    
-    constructAndPostBlock(eventAttributes)
-    end = time.time()
-    print('constructAndPostBlock time:', str(end-start))
+    constructAndPostBlockAsync(eventAttributes)
+
+    START_TIME = getTimeSpan(VERY_BEGINNING_TIME, 'total')
+
