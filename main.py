@@ -134,6 +134,12 @@ def keyphraseExtraction(request):
 # gcloud functions deploy handleEvent --runtime python39 --trigger-http --allow-unauthenticated --project=sal9000-307923 --region=us-west2
 #
 def handleEvent(request):
+    # Google Scheduler 5 minute warmer
+    # https://us-west2-sal9000-307923.cloudfunctions.net/handleEvent?warmer=true
+    if request.args.get('warmer'): 
+        print('handleEvent Google Scheduler 5 min warmer')
+        return json.dumps({'success':True}), 200, {'ContentType':'application/json'} 
+
     request_json = request.get_json()
     eventAttributes = {}
     if request_json: # GET - must be new post event message.channels or message.groups
