@@ -14,10 +14,11 @@ START_TIME = VERY_BEGINNING_TIME
 
 import json
 import RAKE
-#from google.cloud import secretmanager
+from google.cloud import secretmanager
 from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
 import threading
+import re
 
 def getTimeSpan(starttime, label):
     endtime = datetime.utcnow()
@@ -30,7 +31,7 @@ GCP_PROJECT_ID = "sal9000-307923"
 # TODO:  Put SLACK_BOT_TOKEN and SLACK_USER_TOKEN in Google Secret Manager https://dev.to/googlecloud/using-secrets-in-google-cloud-functions-5aem
 # TODO: SecretManager actually takes over 3 seconds to load module and look up secret keys!!  Gonna hardcode Slack OAuth tokens for now, if they
 # get stolen I'll just reissue new ones
-"""
+
 client = secretmanager.SecretManagerServiceClient()
 START_TIME = getTimeSpan(START_TIME, 'secretmanager.SecretManagerServiceClient90')
 def getGCPSecretKey(secretname):
@@ -39,9 +40,6 @@ def getGCPSecretKey(secretname):
     return response.payload.data.decode("UTF-8")
 SLACK_BOT_TOKEN = getGCPSecretKey('SLACK_BOT_TOKEN')
 SLACK_USER_TOKEN = getGCPSecretKey('SLACK_USER_TOKEN')
-"""
-SLACK_BOT_TOKEN = 'xoxb-185558360293-1850107830135-QELeF6bgCbyiykPdEZy79U4U'
-SLACK_USER_TOKEN = 'xoxp-185558360293-185558360501-1851986014151-368db494b5b89899643177604f81a010'
 
 SLACK_WEB_CLIENT_BOT = WebClient(token=SLACK_BOT_TOKEN) 
 SLACK_WEB_CLIENT_USER = WebClient(token=SLACK_USER_TOKEN) 
@@ -59,9 +57,11 @@ NUM_SEARCH_RESULTS = 12
 #    "Are there any opinions on accounting systems / ERP's? We're using SAP Business One (aka Baby SAP) and need to upgrade to something a bit more full featured. Personally I find the SAP consulting ecosystem rather abysmal in terms of talent, looking at netsuite as an alternative but curious to know what others are using / we should be looking at."
 #    ]
 
-TEST_STRINGS = ["mongodb, snowflake, redshift, gcp, aws, new relic, data dog, datadog, zoom, slack, python, golang, cms, contentful, zendesk, ga, analytics, ml, mux, jwplayer, cognito, okta,"]
+TEST_STRINGS = ["https://knuckleheads.club"]
 TEST_USER = 'U5FGEALER' # Gene
-TEST_TS = '1616731334.191200'
+#TEST_TS = '1616731334.191200'
+TEST_TS = '1616902047.213200'
+          
 TEST_CHANNEL_ID = 'GUEPXFVDE' #test
 
 STOPWORDS_LIST=RAKE.SmartStopList()
@@ -76,6 +76,9 @@ SAL_THIN_IMAGE = 'https://files.slack.com/files-pri/T5FGEAL8M-F01SXUR4CJD/sal_th
 START_TIME = getTimeSpan(START_TIME, 'all initialization time')
 
 def RAKEPhraseExtraction(extractString):
+    print ('RAKE text before: ', extractString)
+    extractString = removeURLsFromText(extractString)
+    print ('RAKE text after remove urls: ', extractString)
     return RAKE_OBJECT.run(extractString)
 
 # Return reverse order tuple of 2nd element
@@ -122,12 +125,13 @@ def keyphraseExtraction(request):
     keyPhrases = extractKeyPhrasesRAKE(rakeme)
     return str(keyPhrases)
 
-# Event handler for two types of events:
+# Event handler for 3 types of events:
 # 1) New message to public channel (message.channels) or private channel (message.groups), events registered here: https://api.slack.com/apps/A01R8CEGVMF/event-subscriptions?
 # EventSubscription detected a top post in channel, SAL9000 to extract KeyPhrase, Search and Respond
-#
-# 2) Interactive user push search button. Registered here: https://api.slack.com/apps/A01R8CEGVMF/interactive-messages
+# 2) User adds :sal9001: emoji to post, SAL to reply to that post
+# 3) Interactive user push search button. Registered here: https://api.slack.com/apps/A01R8CEGVMF/interactive-messages
 # Use selected a keyphrase from SAL9001 first response, perform Search and Respond with search results
+#
 #
 # Slack handleEvent webhook: https://us-west2-sal9000-307923.cloudfunctions.net/handleEvent
 # Deployed to Google CLoud local - run from repo root dir:
@@ -140,6 +144,12 @@ def handleEvent(request):
         print('handleEvent Google Scheduler 5 min warmer')
         return json.dumps({'success':True}), 200, {'ContentType':'application/json'} 
 
+    # Don't handle any retry requests - Slack sends retries if it doesn't get response in 3 seconds
+    retryNum = request.headers.get('X-Slack-Retry-Num')
+    if retryNum and int(retryNum) > 1:
+        print('handleEvent retryNum: ', retryNum)
+        return json.dumps({'success':True}), 200, {'ContentType':'application/json'} 
+    
     request_json = request.get_json()
     eventAttributes = {}
     if request_json: # GET - must be new post event message.channels or message.groups
@@ -150,11 +160,9 @@ def handleEvent(request):
         if event:
             if 'bot_id' in event:
                 print('This is a bot message so not responding to it')
-            elif 'thread_ts' in event:
-                print('This is a thread message so not responding to it')
             elif event.get("subtype"):
-                print('This is subtype so not repsponding to it: ', event.get("subtype"))
-            elif 'text' in event:
+                print('This is subtype so not responding to it: ', event.get("subtype"))
+            elif 'text' in event and 'thread_ts' not in event:
                 print("main.handleEvent GET text: ", event['text'])
                 eventAttributes = {
                     'user': event['user'],
@@ -163,17 +171,36 @@ def handleEvent(request):
                     'text': event['text'],
                     'searchme': ''
                 }
+            elif 'reaction_added' == event.get('type') and "sal9001" == event.get('reaction') and 'message' == event.get('item').get('type'): #User add sal9001 emoji::
+                print('main.handleEven GET :sal9001: emoji payload:', event)
+                channel_id = event.get('item').get('channel')
+                message_ts = event.get('item').get('ts')
+                user = event.get('user')
+                thread_ts = event.get('thread_ts')
+                #Get message from Slack API to get text
+                response = SLACK_WEB_CLIENT_USER.conversations_history(channel=channel_id,latest=message_ts,limit=1,inclusive='true') 
+                if response:
+                    text = response.get('messages')[0].get('text')
+                    eventAttributes = {
+                        'user': user,
+                        'channel_id': channel_id,
+                        'thread_ts': message_ts,
+                        'text': text,
+                        'searchme': ''
+                    }
+
             else:
-                print("This message request fell through all filters, so not responding to it")
+                print("This GET request fell through all filters, event: ", event)
         else:
             print("This message has no event element?? Doing nothing...")
     else: # POST - Interactive event
         payload = json.loads(request.form.get('payload'))
         print('main.handleEven POST Interactive Event with payload: ', payload)
         payload_type = payload["type"]
-        if payload_type == "block_actions":
+        if "block_actions" == payload_type: #User pushed a search button
             text = payload['message']['text']
             print("main.handleEvent POST text: ", text)
+            print("main.handleEvent POST bock_action: ", text)
             eventAttributes = {
                 'user': payload['user']['id'],
                 'channel_id': payload['channel']['id'],
@@ -184,11 +211,12 @@ def handleEvent(request):
             }
 
     if len(eventAttributes) > 0:
-        constructAndPostBlockAsync(eventAttributes)
+        constructAndPostBlock(eventAttributes)
     return json.dumps({'success':True}), 200, {'ContentType':'application/json'} 
 
 
 # Asynchronously Construct a Slack block and post/update it
+# Don't use this for now as weird stuff happens
 def constructAndPostBlockAsync(eventAttributes):
     thread = threading.Thread(target=constructAndPostBlock, args=[eventAttributes])
     thread.start()
@@ -248,9 +276,9 @@ def constructBlock(eventAttributes):
     extractedKeyPhrases = extractKeyPhrasesRAKE(text)
 
     if(len(extractedKeyPhrases) < 0):
-        return "Hello <@" + user + "> I don't know what you want"
-
-    greetings ="Hello <@" + user +"> please pick a keyphrase for me to search my memory banks: " + "\n"
+        greetings =  "Hello <@" + user + "> I don't know what you want"
+    else:
+        greetings ="Hello <@" + user +"> please pick a keyphrase for me to search my memory banks: " + "\n"
 
     slack_block_kit = [
         {
@@ -295,32 +323,34 @@ def constructBlock(eventAttributes):
             }
         )
 
-    slack_block_kit.append(
-        {
-            "type": "actions",
-            "elements": searchButtons
-        }
-    )
+    if len(searchButtons) > 0:
+        slack_block_kit.append(
+            {
+                "type": "actions",
+                "elements": searchButtons
+            }
+        )
 
-    searchResults = searchSlackMessages(searchme, NUM_SEARCH_RESULTS, 1)
     searchResultsString = ''
-    count = 1
-    thread_ts = ''
-    if 'thread_ts' in eventAttributes:
-        thread_ts = eventAttributes['thread_ts']
-    for thisSearchResult in searchResults['messages']['matches']:
-        thisUser = thisSearchResult['user']
-        thisUserName = thisSearchResult['username']
-        this_ts = thisSearchResult['ts']
-        thisDate = datetime.fromtimestamp(int(this_ts.split(".")[0])).strftime('%m-%d-%y')
+    if len(searchme) > 1: #don't bother searching if searchme length <= 1
+        searchResults = searchSlackMessages(searchme, NUM_SEARCH_RESULTS, 1)
+        count = 1
+        thread_ts = ''
+        if 'thread_ts' in eventAttributes:
+            thread_ts = eventAttributes['thread_ts']
+        for thisSearchResult in searchResults['messages']['matches']:
+            thisUser = thisSearchResult['user']
+            thisUserName = thisSearchResult['username']
+            this_ts = thisSearchResult['ts']
+            thisDate = datetime.fromtimestamp(int(this_ts.split(".")[0])).strftime('%m-%d-%y')
 
-        if SAL_USER == thisUser: #skip posts by SAL
-            continue
-        if thread_ts == this_ts: #skip this parent post
-            continue
-#Don't @user in search results, can get annying
-        searchResultsString += "<" + thisSearchResult['permalink'] + "|" + thisDate + " " + searchme + "> " + " from "+ thisUserName+ "\n"
-        count += 1
+            if SAL_USER == thisUser: #skip posts by SAL
+                continue
+            if thread_ts == this_ts: #skip this parent post
+                continue
+            #Don't @user in search results, can get annying
+            searchResultsString += "<" + thisSearchResult['permalink'] + "|" + thisDate + " " + searchme + "> " + " from "+ thisUserName+ "\n"
+            count += 1
 
     if len(searchResultsString) == 0:
         searchResultsString = "I'm sorry <@" + user + ">. I'm afraid I can't do that."    
@@ -337,10 +367,12 @@ def constructBlock(eventAttributes):
             }
         }
     )
-
-
-    
+ 
     return slack_block_kit
+
+
+def removeURLsFromText(text):
+    return re.sub(r'<?http\S+', '', text)
 
 # defining a params dict for the parameters to be sent to the API 
 # https://api.slack.com/methods/search.messages
@@ -359,8 +391,6 @@ def searchSlackMessages(text, resultCount, page):
 # Main for commandline run and quick tests
 if __name__ == "__main__":
     START_TIME = getTimeSpan(START_TIME, 'main start')
-    
-
 #    for extractme in TEST_STRINGS:
 #        print('Raking:', extractme)
 #        raked = extractKeyPhrasesRAKE(extractme)
@@ -385,7 +415,7 @@ if __name__ == "__main__":
         'thread_ts': TEST_TS, 
         'user': TEST_USER
         }
-    constructAndPostBlockAsync(eventAttributes)
+    constructAndPostBlock(eventAttributes)
 
     START_TIME = getTimeSpan(VERY_BEGINNING_TIME, 'total')
 
