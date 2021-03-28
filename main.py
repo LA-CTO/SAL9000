@@ -76,9 +76,7 @@ SAL_THIN_IMAGE = 'https://files.slack.com/files-pri/T5FGEAL8M-F01SXUR4CJD/sal_th
 START_TIME = getTimeSpan(START_TIME, 'all initialization time')
 
 def RAKEPhraseExtraction(extractString):
-    print ('RAKE text before: ', extractString)
     extractString = removeURLsFromText(extractString)
-    print ('RAKE text after remove urls: ', extractString)
     return RAKE_OBJECT.run(extractString)
 
 # Return reverse order tuple of 2nd element
@@ -174,20 +172,23 @@ def handleEvent(request):
             elif 'reaction_added' == event.get('type') and "sal9001" == event.get('reaction') and 'message' == event.get('item').get('type'): #User add sal9001 emoji::
                 print('main.handleEven GET :sal9001: emoji payload:', event)
                 channel_id = event.get('item').get('channel')
-                message_ts = event.get('item').get('ts')
+                ts = event.get('item').get('ts')
                 user = event.get('user')
-                thread_ts = event.get('thread_ts')
                 #Get message from Slack API to get text
-                response = SLACK_WEB_CLIENT_USER.conversations_history(channel=channel_id,latest=message_ts,limit=1,inclusive='true') 
+                response = SLACK_WEB_CLIENT_USER.conversations_history(channel=channel_id,latest=ts,limit=1,inclusive='true') 
                 if response:
-                    text = response.get('messages')[0].get('text')
-                    eventAttributes = {
-                        'user': user,
-                        'channel_id': channel_id,
-                        'thread_ts': message_ts,
-                        'text': text,
-                        'searchme': ''
-                    }
+                    print('retrived whole response: ', response)
+                    thisMessage =  response.get('messages')[0]
+                    print('retrieved requested ts: ' + ts + " got response ts: " + thisMessage.get('ts') + " I hope: " + str(thisMessage))
+                    if thisMessage.get('ts') == ts: #only respond to top message emoji
+                        text = thisMessage.get('text')
+                        eventAttributes = {
+                            'user': user,
+                            'channel_id': channel_id,
+                            'thread_ts': ts,
+                            'text': text,
+                            'searchme': ''
+                        }
 
             else:
                 print("This GET request fell through all filters, event: ", event)
