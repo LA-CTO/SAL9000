@@ -48,25 +48,38 @@ SLACK_WEB_CLIENT_USER = WebClient(token=SLACK_USER_TOKEN)
 #For Slack Search API: https://api.slack.com/methods/search.messages
 SLACK_SEARCH_URL = 'https://slack.com/api/search.messages'
 
-#Number of search results to return
-#if more than 5, Slack will not unfural block because to big. Yeah dumb.
-NUM_SEARCH_RESULTS = 12
+#Number of search buttons for SAL to render
+NUM_BUTTONS_FIRST_POST = 5
+NUM_BUTTONS_LATER = 10
+
+
+#Number of search results SAL returns
+NUM_SEARCH_RESULTS = 20
 
 #TEST_STRINGS = [
 #    "Anyone here use Copper CRM at their company? I’m working with two sales consultants (one is used to Salesforce and the other is used to Hubspot). I personally liked Copper cause it sits on top of Gmail. I’d rather use what the salespeople want to use, but in this case there’s no consensus lol.",
 #    "Are there any opinions on accounting systems / ERP's? We're using SAP Business One (aka Baby SAP) and need to upgrade to something a bit more full featured. Personally I find the SAP consulting ecosystem rather abysmal in terms of talent, looking at netsuite as an alternative but curious to know what others are using / we should be looking at."
 #    ]
 
-TEST_STRINGS = ["https://knuckleheads.club"]
+TEST_STRINGS = [
+    "Advice on Large Buttons for Arduino/Raspberry Pi Reflex Game I’m looking to create an outdoor game for my kids based on an excercise activity recommended in a book. It’s kind of like whack a mole. I’m looking to place 5-10 buttons around the back yard connected via Bluetooth to a control board (or phone) and buttons are randomly lit up (or announced) and they compete to touch them as quickly as possible and the control board keeps track of their score. The problem is I can’t find buttons like this that aren’t really small. And ideally they’d also have some lights attached. The old Amazon Dash ones would have worked really well and were only $5 (before rebate) so I figured this would be much easier to find.  Any builder parents out there with advice for an Arduino n00b?"
+    ]
 TEST_USER = 'U5FGEALER' # Gene
-#TEST_TS = '1616731334.191200'
-TEST_TS = '1616902047.213200'
-          
+TEST_TS = '1617037271.224800'
 TEST_CHANNEL_ID = 'GUEPXFVDE' #test
 
 STOPWORDS_LIST=RAKE.SmartStopList()
 RAKE_OBJECT = RAKE.Rake(RAKE.SmartStopList())
 
+COMMON_WORDS_3K = {''}
+"""
+COMMON_WORDS_3K_FILE = open('3kcommonwords.txt')
+with COMMON_WORDS_3K_FILE as reader:
+    for this_word in reader:
+        this_word = this_word.rstrip()
+        COMMON_WORDS_3K.add(this_word)
+print("3K set has : ", len(COMMON_WORDS_3K))
+"""
 ENDPOINT_URL = "https://us-west2-sal9000-307923.cloudfunctions.net/keyphraseExtraction?message="
 
 SAL_USER = 'U01R035QE3Z'
@@ -79,20 +92,31 @@ def RAKEPhraseExtraction(extractString):
     extractString = removeURLsFromText(extractString)
     return RAKE_OBJECT.run(extractString)
 
-# Return reverse order tuple of 2nd element
-def sortTuple(tup):
+# Return reverse order List of 2nd element
+def sortList(list):
     # key is set to sort using second elemnet of
     # sublist lambda has been used
-    tup.sort(key = lambda x: x[1])
-    tup.reverse()
-    return tup
+    list.sort(key = lambda x: x[1])
+    list.reverse()
+    return list
+
 
 # Return the top weighed Phrases from RAKE of stringArray
-def extractKeyPhrasesRAKE(stringArray):
+def extractKeyPhrasesRAKE(stringArray, keywordsCap, removeCommonWords):
     raked = RAKEPhraseExtraction(stringArray)
 #    print("Raked results: ", raked)
-    sortedtuple = sortTuple(raked)[-20:]
-    return sortedtuple
+    returnList = []
+    for i in raked:
+        isCommon = i[0] in removeCommonWords
+        if isCommon:
+            continue
+        returnList.append(i)
+
+#    print("Raked results remove common words: ", returnList)
+    returnList = returnList[:keywordsCap]
+#    print("Raked results capped at: ", str(keywordsCap) + ' :' + str(returnList))
+    return returnList
+
 
 # Deployed to Google CLoud local - run from repo root dir:
 # gcloud functions deploy keyphraseExtraction --runtime python39 --trigger-http --allow-unauthenticated --project=sal9000-307923 --region=us-west2
@@ -120,7 +144,7 @@ def keyphraseExtraction(request):
     else:
         rakeme = ''
     
-    keyPhrases = extractKeyPhrasesRAKE(rakeme)
+    keyPhrases = extractKeyPhrasesRAKE(rakeme, NUM_BUTTONS_FIRST_POST, COMMON_WORDS_3K)
     return str(keyPhrases)
 
 # Event handler for 3 types of events:
@@ -160,14 +184,15 @@ def handleEvent(request):
                 print('This is a bot message so not responding to it')
             elif event.get("subtype"):
                 print('This is subtype so not responding to it: ', event.get("subtype"))
-            elif 'text' in event and 'thread_ts' not in event:
+            elif 'text' in event and 'thread_ts' not in event: #User top post, SAL to respond for first time
                 print("main.handleEvent GET text: ", event['text'])
                 eventAttributes = {
                     'user': event['user'],
                     'channel_id': event['channel'],
                     'thread_ts': event['ts'],
                     'text': event['text'],
-                    'searchme': ''
+                    'searchme': '',
+                    'keyphrasesCap': NUM_BUTTONS_FIRST_POST 
                 }
             elif 'reaction_added' == event.get('type') and "sal9001" == event.get('reaction') and 'message' == event.get('item').get('type'): #User add sal9001 emoji::
                 print('main.handleEven GET :sal9001: emoji payload:', event)
@@ -187,7 +212,8 @@ def handleEvent(request):
                             'channel_id': channel_id,
                             'thread_ts': ts,
                             'text': text,
-                            'searchme': ''
+                            'searchme': '',
+                            'keyphrasesCap': NUM_BUTTONS_LATER 
                         }
 
             else:
@@ -200,16 +226,24 @@ def handleEvent(request):
         payload_type = payload["type"]
         if "block_actions" == payload_type: #User pushed a search button
             text = payload['message']['text']
-            print("main.handleEvent POST text: ", text)
-            print("main.handleEvent POST bock_action: ", text)
+            print("main.handleEvent POST bock_action text: ", text)
+            parseSearchAndOrder = payload["actions"][0]['value'].split('|')
+            print("main.handleEvent POST bock_action button action: ", parseSearchAndOrder)
+            searchme = parseSearchAndOrder[0]
+            order = parseSearchAndOrder[1]
+
             eventAttributes = {
                 'user': payload['user']['id'],
                 'channel_id': payload['channel']['id'],
                 'thread_ts': payload['message']['thread_ts'], 
                 'this_ts': payload['message']['ts'], 
-                'searchme': payload["actions"][0]['value'],
-                'text': text
+                'searchme': searchme,
+                'order': order,
+                'text': text,
+                'keyphrasesCap': NUM_BUTTONS_LATER 
             }
+            print("main.handleEvent POST bock_action eventAttributes: ", eventAttributes)
+
 
     if len(eventAttributes) > 0:
         constructAndPostBlock(eventAttributes)
@@ -271,10 +305,15 @@ def constructBlock(eventAttributes):
     starttime = datetime.utcnow()
     text = eventAttributes['text']
     user = eventAttributes['user']
+    keyphrasesCap = eventAttributes['keyphrasesCap']
     searchme = ''
+    order = 'asc'
     if 'searchme' in eventAttributes:
         searchme = eventAttributes['searchme']
-    extractedKeyPhrases = extractKeyPhrasesRAKE(text)
+    if 'order' in eventAttributes:
+        order = eventAttributes['order']
+
+    extractedKeyPhrases = extractKeyPhrasesRAKE(text, keyphrasesCap, COMMON_WORDS_3K)
 
     if(len(extractedKeyPhrases) < 0):
         greetings =  "Hello <@" + user + "> I don't know what you want"
@@ -307,6 +346,11 @@ def constructBlock(eventAttributes):
         if len(searchme) > 0:
             if searchme == keyPhrase:
                 thisButtonStyle = "danger"
+                #flip order
+                if order == 'asc':
+                    order = 'desc'
+                else:
+                    order = 'asc'
         elif count == 0:
             thisButtonStyle = "danger"
             searchme = keyPhrase
@@ -320,7 +364,7 @@ def constructBlock(eventAttributes):
                     "text": keyPhrase + " (" + str(weight) + ")"
                 },
     			"style": thisButtonStyle,
-                "value": keyPhrase,
+                "value": keyPhrase + "|" + order,
             }
         )
 
@@ -334,7 +378,7 @@ def constructBlock(eventAttributes):
 
     searchResultsString = ''
     if len(searchme) > 1: #don't bother searching if searchme length <= 1
-        searchResults = searchSlackMessages(searchme, NUM_SEARCH_RESULTS, 1)
+        searchResults = searchSlackMessages(searchme, NUM_SEARCH_RESULTS, 1, order)
         count = 1
         thread_ts = ''
         if 'thread_ts' in eventAttributes:
@@ -382,10 +426,9 @@ def removeURLsFromText(text):
 # query=text, count=20, highlight=true, page=1, sort=score/timestamp, sort_dir=desc/asc, team_id=T1234567890
 #
 # Returns json of results as described: https://api.slack.com/methods/search.messages  
-def searchSlackMessages(text, resultCount, page):
-# Limit search to in #techandtools only for now
-#    text = "in:techandtools " + text
-    response = SLACK_WEB_CLIENT_USER.search_messages(query=text, sort='score', sor_dir='desc', count=resultCount, page=page) 
+def searchSlackMessages(text, resultCount, page, order):
+
+    response = SLACK_WEB_CLIENT_USER.search_messages(query=text, sort='timestamp', sort_dir=order, count=resultCount, page=page) 
 #    print ('search response: ', response)
     return response
 
@@ -414,7 +457,8 @@ if __name__ == "__main__":
         'text': TEST_STRINGS[0], 
         'channel_id': TEST_CHANNEL_ID, 
         'thread_ts': TEST_TS, 
-        'user': TEST_USER
+        'user': TEST_USER,
+        'keyphrasesCap': NUM_BUTTONS_FIRST_POST
         }
     constructAndPostBlock(eventAttributes)
 
