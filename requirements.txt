@@ -1,6 +1,8 @@
 python-rake
 slack_sdk
 google-cloud-secret-manager
+google-cloud-logging
 #rake-nltk
 #pytextrank
+
 

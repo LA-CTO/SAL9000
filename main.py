@@ -227,10 +227,12 @@ def handleEvent(request):
         if "block_actions" == payload_type: #User pushed a search button
             text = payload['message']['text']
             print("main.handleEvent POST bock_action text: ", text)
+            order = 'asc'
             parseSearchAndOrder = payload["actions"][0]['value'].split('|')
             print("main.handleEvent POST bock_action button action: ", parseSearchAndOrder)
             searchme = parseSearchAndOrder[0]
-            order = parseSearchAndOrder[1]
+            if len(parseSearchAndOrder) > 1: # to remain backwards compatible with older questions without order token
+                order = parseSearchAndOrder[1]
 
             eventAttributes = {
                 'user': payload['user']['id'],
@@ -361,7 +363,7 @@ def constructBlock(eventAttributes):
                 "type": "button",
                 "text": {
                     "type": "plain_text",
-                    "text": keyPhrase + " (" + str(weight) + ")"
+                    "text": keyPhrase + " (" + format(weight, '.1f') + ")"
                 },
     			"style": thisButtonStyle,
                 "value": keyPhrase + "|" + order,
