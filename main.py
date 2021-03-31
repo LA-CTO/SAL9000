@@ -31,6 +31,9 @@ GCP_PROJECT_ID = "sal9000-307923"
 # TODO:  Put SLACK_BOT_TOKEN and SLACK_USER_TOKEN in Google Secret Manager https://dev.to/googlecloud/using-secrets-in-google-cloud-functions-5aem
 # TODO: SecretManager actually takes over 3 seconds to load module and look up secret keys!!  Gonna hardcode Slack OAuth tokens for now, if they
 # get stolen I'll just reissue new ones
+#
+# Need to update Slack tokens as Slack expire them, either through console or gcloud:
+# gcloud secrets versions add SLACK_BOT_TOKEN --data-file=secret.txt  --project=sal9000-307923 
 
 client = secretmanager.SecretManagerServiceClient()
 START_TIME = getTimeSpan(START_TIME, 'secretmanager.SecretManagerServiceClient90')
@@ -43,7 +46,6 @@ SLACK_USER_TOKEN = getGCPSecretKey('SLACK_USER_TOKEN')
 
 SLACK_WEB_CLIENT_BOT = WebClient(token=SLACK_BOT_TOKEN) 
 SLACK_WEB_CLIENT_USER = WebClient(token=SLACK_USER_TOKEN) 
-
 
 #For Slack Search API: https://api.slack.com/methods/search.messages
 SLACK_SEARCH_URL = 'https://slack.com/api/search.messages'
