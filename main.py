@@ -19,13 +19,52 @@ from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
 import threading
 import re
+import gcloud_logging
+from flask import jsonify
 
-def getTimeSpan(starttime, label):
+# Handle SAL9001 slash commands
+# Slack handleEvent webhook: https://us-west2-sal9000-307923.cloudfunctions.net/handleSlashCommand
+# This webhook is set here: https://api.slack.com/apps/A01R8CEGVMF/slash-commands?
+#
+# Deployed to Google CLoud local - run from repo root dir:
+# gcloud functions deploy handleSlashCommand --runtime python39 --trigger-http --allow-unauthenticated --project=sal9000-307923 --region=us-west2
+#
+# /log [seconds] [error]
+def handleSlashCommand(request):
+    postForm = request.form
+# For a /log command event:  
+# handleSlashCommand POST form: ImmutableMultiDict([('token', '41px5FTEvkFHVLe5rCf7KQyU'), ('team_id', 'T5FGEAL8M'), ('team_domain', 'lacto'), ('channel_id', 'GUEPXFVDE'), ('channel_name', 'privategroup'), ('user_id', 'U5FGEALER'), ('user_name', 'genechuang'), ('command', '/log'), ('text', '10'), ('api_app_id', 'A01R8CEGVMF'), ('is_enterprise_install', 'false'), ('response_url', 'https://hooks.slack.com/commands/T5FGEAL8M/1921837490098/CmXXR07PZv2SfmwuM0q0xLb7'), ('trigger_id', '1934451302657.185558360293.bfc0b5306af56adf4ef03da0b07774ab')])
+    if 'command' in postForm and postForm.get('command') == '/log':
+        channel_id = postForm.get('channel_id')
+        text = postForm.get('text')
+        print('handleEvent /log ' + text)
+        seconds = 60 # default 60 seconds
+        onlyError = 0
+        text = postForm.get('text')
+        if len(text) > 0:
+            tokens = text.split(' ')
+            seconds = int(tokens[0])
+            if seconds > 300:
+                seconds = 300 #max 5 minutes
+
+            if len(tokens) > 1 and "error" == tokens[1]:
+                onlyError = 1
+
+
+        log_entries = gcloud_logging.list_entries(seconds, onlyError)
+        rtnText = ""
+        for entry in log_entries:
+            timestamp = entry.timestamp.isoformat()[:-10]
+            rtnText += "`* {}: {}`\n".format(timestamp, entry.payload)
+#        print('/log rtnText', rtnText)
+        return jsonify(response_type='in_channel',text=rtnText)
+
+def printTimeElapsed(starttime, label):
     endtime = datetime.utcnow()
     print(str(endtime-starttime)[:-4] + " " + label)
     return endtime
 
-START_TIME = getTimeSpan(START_TIME, 'import time')
+START_TIME = printTimeElapsed(START_TIME, 'import time')
 GCP_PROJECT_ID = "sal9000-307923"
 
 # TODO:  Put SLACK_BOT_TOKEN and SLACK_USER_TOKEN in Google Secret Manager https://dev.to/googlecloud/using-secrets-in-google-cloud-functions-5aem
@@ -36,7 +75,7 @@ GCP_PROJECT_ID = "sal9000-307923"
 # gcloud secrets versions add SLACK_BOT_TOKEN --data-file=secret.txt  --project=sal9000-307923 
 
 client = secretmanager.SecretManagerServiceClient()
-START_TIME = getTimeSpan(START_TIME, 'secretmanager.SecretManagerServiceClient90')
+START_TIME = printTimeElapsed(START_TIME, 'secretmanager.SecretManagerServiceClient90')
 def getGCPSecretKey(secretname):
     request = {"name": f"projects/{GCP_PROJECT_ID}/secrets/{secretname}/versions/latest"}
     response = client.access_secret_version(request)
@@ -88,7 +127,7 @@ SAL_USER = 'U01R035QE3Z'
 SAL_IMAGE = 'https://bit.ly/39eK1bY'
 SAL_THIN_IMAGE = 'https://files.slack.com/files-pri/T5FGEAL8M-F01SXUR4CJD/sal_thin.jpg?pub_secret=97e5e68214'
 
-START_TIME = getTimeSpan(START_TIME, 'all initialization time')
+START_TIME = printTimeElapsed(START_TIME, 'all initialization time')
 
 def RAKEPhraseExtraction(extractString):
     extractString = removeURLsFromText(extractString)
@@ -149,6 +188,7 @@ def keyphraseExtraction(request):
     keyPhrases = extractKeyPhrasesRAKE(rakeme, NUM_BUTTONS_FIRST_POST, COMMON_WORDS_3K)
     return str(keyPhrases)
 
+# Slack handleEvent webhook: https://us-west2-sal9000-307923.cloudfunctions.net/handleEvent
 # Event handler for 3 types of events:
 # 1) New message to public channel (message.channels) or private channel (message.groups), events registered here: https://api.slack.com/apps/A01R8CEGVMF/event-subscriptions?
 # EventSubscription detected a top post in channel, SAL9000 to extract KeyPhrase, Search and Respond
@@ -156,12 +196,12 @@ def keyphraseExtraction(request):
 # 3) Interactive user push search button. Registered here: https://api.slack.com/apps/A01R8CEGVMF/interactive-messages
 # Use selected a keyphrase from SAL9001 first response, perform Search and Respond with search results
 #
-#
-# Slack handleEvent webhook: https://us-west2-sal9000-307923.cloudfunctions.net/handleEvent
 # Deployed to Google CLoud local - run from repo root dir:
 # gcloud functions deploy handleEvent --runtime python39 --trigger-http --allow-unauthenticated --project=sal9000-307923 --region=us-west2
 #
 def handleEvent(request):
+    print("handleEvent request: ", request)
+   
     # Google Scheduler 5 minute warmer
     # https://us-west2-sal9000-307923.cloudfunctions.net/handleEvent?warmer=true
     if request.args.get('warmer'): 
@@ -186,7 +226,7 @@ def handleEvent(request):
                 print('This is a bot message so not responding to it')
             elif event.get("subtype"):
                 print('This is subtype so not responding to it: ', event.get("subtype"))
-            elif 'text' in event and 'thread_ts' not in event: #User top post, SAL to respond for first time
+            elif 'text' in event and 'thread_ts' not in event and not event.get('text').startswith("/"): #User top post, SAL to respond for first time
                 print("main.handleEvent GET text: ", event['text'])
                 eventAttributes = {
                     'user': event['user'],
@@ -223,7 +263,12 @@ def handleEvent(request):
         else:
             print("This message has no event element?? Doing nothing...")
     else: # POST - Interactive event
-        payload = json.loads(request.form.get('payload'))
+        postForm = request.form
+        print("handleEvent POST form:", postForm)
+        if 'command' in postForm and postForm.get('command') == '/log':
+            return handleSlashCommand(request)
+
+        payload = json.loads(postForm.get('payload'))
         print('main.handleEven POST Interactive Event with payload: ', payload)
         payload_type = payload["type"]
         if "block_actions" == payload_type: #User pushed a search button
@@ -265,11 +310,11 @@ def constructAndPostBlockAsync(eventAttributes):
 def constructAndPostBlock(eventAttributes):
     startime = datetime.utcnow() 
     block = constructBlock(eventAttributes)
-    getTimeSpan(startime, 'constructBlock')
+    printTimeElapsed(startime, 'constructBlock')
     startime2 = datetime.utcnow() 
     response = postBlockToSlackChannel(eventAttributes, block)
-    getTimeSpan(startime2, 'postBlockToSlackChannel')
-#    getTimeSpan(startime, 'constructAndPostBlock')
+    printTimeElapsed(startime2, 'postBlockToSlackChannel')
+#    printTimeElapsed(startime, 'constructAndPostBlock')
 
 #Posts a Block to parent post thread_ts.  
 # If this_ts > 0, this is a user button push, update the existing block with with new search results
@@ -438,7 +483,7 @@ def searchSlackMessages(text, resultCount, page, order):
 
 # Main for commandline run and quick tests
 if __name__ == "__main__":
-    START_TIME = getTimeSpan(START_TIME, 'main start')
+    START_TIME = printTimeElapsed(START_TIME, 'main start')
 #    for extractme in TEST_STRINGS:
 #        print('Raking:', extractme)
 #        raked = extractKeyPhrasesRAKE(extractme)
@@ -464,7 +509,11 @@ if __name__ == "__main__":
         'user': TEST_USER,
         'keyphrasesCap': NUM_BUTTONS_FIRST_POST
         }
-    constructAndPostBlock(eventAttributes)
+#    constructAndPostBlock(eventAttributes)
 
-    START_TIME = getTimeSpan(VERY_BEGINNING_TIME, 'total')
+    START_TIME = printTimeElapsed(VERY_BEGINNING_TIME, 'total')
+
+    # test Gcloud logging get entries
+    log_entries = gcloud_logging.list_entries(10, 0)
+
 
