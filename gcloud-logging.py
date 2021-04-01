@@ -1,34 +1,49 @@
 # Imports the Google Cloud client library
 from google.cloud import logging
 from google.oauth2 import service_account
+import datetime
 
-credentials = service_account.Credentials.from_service_account_file('d:\SAL9000\sal9000-307923-a9548c172b1d.json')
-
-def list_entries(logger_name):
-    """Lists the most recent entries for a given logger."""
-    logging_client = logging.Client()
-    logger = logging_client.logger(logger_name)
-
-    print("Listing entries for logger {}:".format(logger.name))
-
-    for entry in logger.list_entries():
-        timestamp = entry.timestamp.isoformat()
-        print("* {}: {}".format(timestamp, entry.payload))
-
-
+CREDENTIALS = service_account.Credentials.from_service_account_file('d:\SAL9000\sal9000-307923-a9548c172b1d.json')
 # Instantiates a client
-#credentials='d:\SAL9000\sal9000-307923-a9548c172b1d.json'
-logging_client = logging.Client(credentials=credentials)
+LOGGING_CLIENT = logging.Client(credentials=CREDENTIALS)
+#LOGGING_CLIENT = logging.Client()
 
 # The name of the log to write to
-log_name = "my-log"
+#LOGGER_NAME = "my-log"
+LOGGER_NAME="cloudfunctions.googleapis.com%2Fcloud-functions"
+
 # Selects the log to write to
-logger = logging_client.logger(log_name)
+LOGGER = LOGGING_CLIENT.logger(LOGGER_NAME)
 
-# The data to log
-text = "Hello, world!"
+"""
+gcloud logging read 'timestamp>"2021-04-01"' --project=sal9000-307923
+gcloud logging read 'timestamp>="2021-04-01T18:30:15.384732Z"' --project=sal9000-307923
 
-# Writes the log entry
-logger.log_text(text)
+https://console.cloud.google.com/logs/query;query=resource.type%20%3D%20%22cloud_function%22%0Aresource.labels.region%20%3D%20%22us-west2%22%0Aseverity%3E%3DDEFAULT%0Alog_name%3D%22projects%2Fsal9000-307923%2Flogs%2Fcloudfunctions.googleapis.com%252Fcloud-functions%22?project=sal9000-307923
 
-print("Logged: {}".format(text))
+resource.type = "cloud_function"
+resource.labels.region = "us-west2"
+severity>=DEFAULT
+timestamp >= "2016-11-29T23:00:00Z"
+timestamp <= "2016-11-29T23:30:00Z"
+timestamp>="2021-04-01"
+
+This method will list logging entries duration_secs into the past from NOW
+"""
+def list_entries(duration_secs):
+    now_ts = datetime.datetime.utcnow()
+    print("Now timestamp: ", now_ts)
+    range_ts = now_ts - datetime.timedelta(seconds=duration_secs)
+    print("Range  timestamp: ", range_ts)
+
+#    filter_str = 'timestamp>="2021-04-01T18:30:15.384732Z"'
+    filter_str = 'timestamp >="' + range_ts.strftime("%Y-%m-%dT%H:%M:%S.%fZ") + '"'
+    print("Listing entries for logger {}:".format(LOGGER.name) + " with filter: " + filter_str)
+    log_entries = LOGGER.list_entries(filter_=filter_str)
+    for entry in log_entries:
+        timestamp = entry.timestamp.isoformat()
+        print("* {}: {}".format(timestamp, entry.payload))
+    return log_entries
+
+list_entries(60*10)
+
