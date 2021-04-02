@@ -6,12 +6,9 @@ RAKE https://github.com/fabianvf/python-rake
 howto: https://towardsdatascience.com/extracting-keyphrases-from-text-rake-and-gensim-in-python-eefd0fad582f
  
 Deployed to Google CLoud local - run from repo root dir:
-gcloud functions deploy keyphraseExtraction --runtime python39 --trigger-http --allow-unauthenticated --project=sal9000-307923 --region=us-west2
+gcloud functions deploy handleEvent --runtime python39 --trigger-http --allow-unauthenticated --project=sal9000-307923 --region=us-west2
 
-Deploy from github:
-gcloud functions deploy keyphaseExtraction --project=sal9000-307923 --source=https://source.developers.google.com/projects/sal9000-307923/repos/github_genechuang_sal9000/moveable-aliases/main/paths// --runtime=python39 --trigger-http --allow-unauthenticated --region=us-west2
-
-Call functionl: https://us-west2-sal9000-307923.cloudfunctions.net/keyphraseExtraction?message=helloSal9000
+Call functionl: https://us-west2-sal9000-307923.cloudfunctions.net/handleEvent?message=helloSal9000
  
 @here Slackers: I created the SAL 9000 slackbot using Zapier + python_rake in Google Cloud Function REST API  - Ask any question in this #techandtools channel, it will pull 1st most relevant result from Slack search of key phrase in #techandtools.  
 
