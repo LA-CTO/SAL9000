@@ -10,7 +10,9 @@ gcloud functions deploy handleEvent --runtime python39 --trigger-http --allow-un
 
 Call functionl: https://us-west2-sal9000-307923.cloudfunctions.net/handleEvent?message=helloSal9000
  
-@here Slackers: I created the SAL 9000 slackbot using Zapier + python_rake in Google Cloud Function REST API  - Ask any question in this #techandtools channel, it will pull 1st most relevant result from Slack search of key phrase in #techandtools.  
+3/16/21: @here Slackers: I created the SAL 9000 slackbot using Zapier + python_rake in Google Cloud Function REST API  - Ask any question in this #techandtools channel, it will pull 1st most relevant result from Slack search of key phrase in #techandtools.  
+
+3/10/22: I just redeployed @SAL 9001 - For keyword extraction, I replaced RAKE with OpenAI Completion (thx @Helin Cao for the tip), so now SAL should be smarter with extracting most relevant keywords from your question to search against Slack archive.  OpenAI also does not provide keyword weights, so you won't see numbers in parenthesis in the search button labels anymore. For those interested in my gnarly python GCP Cloud Function code to build SAL: https://github.com/genechuang/SAL9000/blob/main/main.py
 
 TODO/WishList for SAL 9000 (feel free to add requests/bugs by replying to this post):
 1. Build a simple keyword extraction function in Python Done: I used this word count example and generated a Slackers word histogram here
