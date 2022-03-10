@@ -19,8 +19,14 @@ from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
 import threading
 import re
-import gcloud_logging
+#import gcloud_logging
 from flask import jsonify
+
+#openai
+import os
+import openai
+#TODO: load openai key from GCP Secrets Manager
+openai.api_key = "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"
 
 # Handle SAL9001 slash commands
 # Slack handleEvent webhook: https://us-west2-sal9000-307923.cloudfunctions.net/handleSlashCommand
@@ -97,14 +103,6 @@ NUM_BUTTONS_LATER = 10
 #Number of search results SAL returns
 NUM_SEARCH_RESULTS = 20
 
-#TEST_STRINGS = [
-#    "Anyone here use Copper CRM at their company? I’m working with two sales consultants (one is used to Salesforce and the other is used to Hubspot). I personally liked Copper cause it sits on top of Gmail. I’d rather use what the salespeople want to use, but in this case there’s no consensus lol.",
-#    "Are there any opinions on accounting systems / ERP's? We're using SAP Business One (aka Baby SAP) and need to upgrade to something a bit more full featured. Personally I find the SAP consulting ecosystem rather abysmal in terms of talent, looking at netsuite as an alternative but curious to know what others are using / we should be looking at."
-#    ]
-
-TEST_STRINGS = [
-    "Advice on Large Buttons for Arduino/Raspberry Pi Reflex Game I’m looking to create an outdoor game for my kids based on an excercise activity recommended in a book. It’s kind of like whack a mole. I’m looking to place 5-10 buttons around the back yard connected via Bluetooth to a control board (or phone) and buttons are randomly lit up (or announced) and they compete to touch them as quickly as possible and the control board keeps track of their score. The problem is I can’t find buttons like this that aren’t really small. And ideally they’d also have some lights attached. The old Amazon Dash ones would have worked really well and were only $5 (before rebate) so I figured this would be much easier to find.  Any builder parents out there with advice for an Arduino n00b?"
-    ]
 TEST_USER = 'U5FGEALER' # Gene
 TEST_TS = '1617037271.224800'
 TEST_CHANNEL_ID = 'GUEPXFVDE' #test
@@ -158,6 +156,25 @@ def extractKeyPhrasesRAKE(stringArray, keywordsCap, removeCommonWords):
 #    print("Raked results capped at: ", str(keywordsCap) + ' :' + str(returnList))
     return returnList
 
+# Return the extracted key phrases using Open AI
+def extractKeyPhrasesOpenAI(extractMe, keywordsCap):
+    response = openai.Completion.create(
+        engine="text-davinci-001",
+        prompt="Extract keywords from this text:\n\n" + extractMe, 
+        temperature=0.3,
+        max_tokens=60,
+        top_p=1,
+        frequency_penalty=0.8,
+        presence_penalty=0
+        )
+    extractedRawList =  response.choices[0].text.split(",")
+
+    returnList = []
+    for i in extractedRawList:
+        returnList.append(i.strip())
+    returnList = returnList[:keywordsCap]
+    return returnList
+
 
 # Deployed to Google CLoud local - run from repo root dir:
 # gcloud functions deploy keyphraseExtraction --runtime python39 --trigger-http --allow-unauthenticated --project=sal9000-307923 --region=us-west2
@@ -170,7 +187,7 @@ def keyphraseExtraction(request):
         Response object using
         `make_response <https://flask.palletsprojects.com/en/1.1.x/api/#flask.Flask.make_response>`.
     """
-    rakeme=''
+    extractMe=''
     returnjson = 0
     request_json = request.get_json()
     if request_json and 'challenge' in request_json:
@@ -178,15 +195,18 @@ def keyphraseExtraction(request):
         return request_json['challenge']
     elif request.args and 'message' in request.args:
         returnjson = 'returnjson' in request.args
-        rakeme = request.args.get('message')
+        extractMe = request.args.get('message')
     elif request_json and 'message' in request_json:
         returnjson = request_json['returnjson']
-        rakeme =  request_json['message']
+        extractMe =  request_json['message']
     else:
-        rakeme = ''
+        extractMe = ''
     
-    keyPhrases = extractKeyPhrasesRAKE(rakeme, NUM_BUTTONS_FIRST_POST, COMMON_WORDS_3K)
-    return str(keyPhrases)
+# Switched from RAKE to OpenAI Completion 3/10/22
+#    extractedKeyPhrases = extractKeyPhrasesRAKE(extractMe, keyphrasesCap, COMMON_WORDS_3K)
+    extractedKeyPhrases = extractKeyPhrasesOpenAI(extractMe, NUM_BUTTONS_FIRST_POST)
+
+    return str(extractedKeyPhrases)
 
 # Slack handleEvent webhook: https://us-west2-sal9000-307923.cloudfunctions.net/handleEvent
 # Event handler for 3 types of events:
@@ -362,7 +382,9 @@ def constructBlock(eventAttributes):
     if 'order' in eventAttributes:
         order = eventAttributes['order']
 
-    extractedKeyPhrases = extractKeyPhrasesRAKE(text, keyphrasesCap, COMMON_WORDS_3K)
+# Switched from RAKE to OpenAI Completion 3/10/22
+#    extractedKeyPhrases = extractKeyPhrasesRAKE(text, keyphrasesCap, COMMON_WORDS_3K)
+    extractedKeyPhrases = extractKeyPhrasesOpenAI(text, keyphrasesCap)
 
     if(len(extractedKeyPhrases) < 0):
         greetings =  "Hello <@" + user + "> I don't know what you want"
@@ -388,9 +410,7 @@ def constructBlock(eventAttributes):
 #    print('Slack Blockkit: ', slack_block_kit)
     count = 0
     searchButtons = []
-    for keyPhraseTuple in extractedKeyPhrases:
-        keyPhrase = keyPhraseTuple[0]
-        weight = keyPhraseTuple[1]
+    for keyPhrase in extractedKeyPhrases:
         thisButtonStyle = "primary"
         if len(searchme) > 0:
             if searchme == keyPhrase:
@@ -410,7 +430,7 @@ def constructBlock(eventAttributes):
                 "type": "button",
                 "text": {
                     "type": "plain_text",
-                    "text": keyPhrase + " (" + format(weight, '.1f') + ")"
+                    "text": keyPhrase
                 },
     			"style": thisButtonStyle,
                 "value": keyPhrase + "|" + order,
@@ -482,18 +502,22 @@ def searchSlackMessages(text, resultCount, page, order):
     return response
 
 # Main for commandline run and quick tests
+# $env:GOOGLE_APPLICATION_CREDENTIALS="C:\code\SAL9000\SAL9000\sal9000-307923-a95b63614f84.json"
 if __name__ == "__main__":
     START_TIME = printTimeElapsed(START_TIME, 'main start')
-#    for extractme in TEST_STRINGS:
+
+    TEST_STRINGS = [
+#        "This has been asked a few times on here already, but curious if anyone has developed any strong opinions since the last time it was asked. What has worked the best for your front end teams in E2E testing React Native apps? Appium? Detox?",
+#        "I am looking for a good vendor who has integrations to all of the adtech systems out there to gather and normalize campaign performance data. Ideally, it would be a connector or api we can implement to aggregate campaign performance data.
+#   Also, we have a data lake in S3 and Snowflake, if that helps. Please let me know if anyone knows of any good providers in this space.  Thx!!"    
+        "Can someone point me to feature flagging best practices? How do you name your feature flags? How do you ensure a configuration of flags is compatible?"
+        ]
+    for extractme in TEST_STRINGS:
 #        print('Raking:', extractme)
-#        raked = extractKeyPhrasesRAKE(extractme)
+#        raked  = extractKeyPhrasesRAKE(extractme, NUM_BUTTONS_FIRST_POST, COMMON_WORDS_3K)
 #        print('raked return top:', raked)
 
-        #testing RESTFUL call to keyPhraseExtraction
-#        extractmeurl = ENDPOINT_URL + extractme
-#        print("calling url: ", extractmeurl)
-#        response = requests.get(extractmeurl)
-#        print("response: ", response.content)
+        print("OpenAI extracted phrases:", extractKeyPhrasesOpenAI(extractme, NUM_BUTTONS_FIRST_POST))
 
     #postMessageToSlackChannel('test', '', 'Hello from SAL 9001! :tada:')        
 
@@ -514,6 +538,7 @@ if __name__ == "__main__":
     START_TIME = printTimeElapsed(VERY_BEGINNING_TIME, 'total')
 
     # test Gcloud logging get entries
-    log_entries = gcloud_logging.list_entries(10, 0)
+#
+#     log_entries = gcloud_logging.list_entries(10, 0)
 
 

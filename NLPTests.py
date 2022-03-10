@@ -8,6 +8,11 @@ import pytextrank
 import requests
 import time
 from datetime import datetime
+import os
+import openai
+#TODO: load openai key from GCP Secrets Manager
+openai.api_key = "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"
+
 
 
 TEST_STRINGS = [
@@ -15,8 +20,9 @@ TEST_STRINGS = [
 #    "Are there any opinions on accounting systems / ERP's? We're using SAP Business One (aka Baby SAP) and need to upgrade to something a bit more full featured. Personally I find the SAP consulting ecosystem rather abysmal in terms of talent, looking at netsuite as an alternative but curious to know what others are using / we should be looking at.",
 #    "Likely this was asked before - as my company is growing, I'm looking for a CTO support group. This Slack is great - but I know there are companies out there organizing 6-8 people pods that meet once a month, and create a tight sharing group and more clear problem-solving support from peers that are going through similar struggles. Anybody here part of such groups that they would recommend? (generally looking for NYC in case we go back to work and meet in person in the second half of this year).",
 #    "anyone know of a crawler as a service tool that they've used in the past? What i'd like to do is feed it a list of URLs, and have it dump out data for me in S3 that i can ingest to make decisions on",
-    "Advice on Large Buttons for Arduino/Raspberry Pi Reflex Game I’m looking to create an outdoor game for my kids based on an excercise activity recommended in a book. It’s kind of like whack a mole. I’m looking to place 5-10 buttons around the back yard connected via Bluetooth to a control board (or phone) and buttons are randomly lit up (or announced) and they compete to touch them as quickly as possible and the control board keeps track of their score. The problem is I can’t find buttons like this that aren’t really small. And ideally they’d also have some lights attached. The old Amazon Dash ones would have worked really well and were only $5 (before rebate) so I figured this would be much easier to find.  Any builder parents out there with advice for an Arduino n00b?"
-#    "Any builder parents out there with advice for an Arduino n00b"    
+#    "Advice on Large Buttons for Arduino/Raspberry Pi Reflex Game I’m looking to create an outdoor game for my kids based on an excercise activity recommended in a book. It’s kind of like whack a mole. I’m looking to place 5-10 buttons around the back yard connected via Bluetooth to a control board (or phone) and buttons are randomly lit up (or announced) and they compete to touch them as quickly as possible and the control board keeps track of their score. The problem is I can’t find buttons like this that aren’t really small. And ideally they’d also have some lights attached. The old Amazon Dash ones would have worked really well and were only $5 (before rebate) so I figured this would be much easier to find.  Any builder parents out there with advice for an Arduino n00b?"
+#    "Any builder parents out there with advice for an Arduino n00b"
+     "This has been asked a few times on here already, but curious if anyone has developed any strong opinions since the last time it was asked. What has worked the best for your front end teams in E2E testing React Native apps? Appium? Detox?"    
     ]
 
 #TEST_STRINGS = ["What is redis vs mongodb?"]
@@ -100,26 +106,41 @@ def keyphraseExtraction(request):
 # Main for commandline run and quick tests
 if __name__ == "__main__":
 
-    for extractme in TEST_STRINGS:
-        print('Raking:', extractme)
-        raked = extractTopPhrasesRAKE(extractme, COMMON_WORDS_3K)
+#    print('openai: ')
+#    print(openai.Completion.create(engine="text-davinci-001", prompt="Say this is a test", max_tokens=6))
 
-        print('Rake_NLTK results:', RAKENLTKPhaseExtraction(extractme))
+    for extractme in TEST_STRINGS:
+ 
+        response = openai.Completion.create(
+            engine="text-davinci-001",
+            prompt="Extract keywords from this text:\n\n" + extractme, 
+            temperature=0.3,
+            max_tokens=60,
+            top_p=1,
+            frequency_penalty=0.8,
+            presence_penalty=0
+            )
+        print('OpenAI:', response.get("choices"))
+
+#        print('Raking:', extractme)
+#        raked = extractTopPhrasesRAKE(extractme, COMMON_WORDS_3K)
+
+#        print('Rake_NLTK results:', RAKENLTKPhaseExtraction(extractme))
 
 #        print('PyTextRanking: ', extractme)
         # load a spaCy model, depending on language, scale, etc.
-        nlp = spacy.load("en_core_web_sm")
+#        nlp = spacy.load("en_core_web_sm")
         # add PyTextRank to the spaCy pipeline
-        nlp.add_pipe("textrank", last=True)
-        doc = nlp(extractme)
+#        nlp.add_pipe("textrank", last=True)
+#        doc = nlp(extractme)
         # examine the top-ranked phrases in the document
 #        print('PyTextRank:', doc._.phrases)
-        pytextrankresults = ''
-        for p in doc._.phrases:
-            pytextrankresults += "(" + p.text + ' , ' + str(p.rank)[0:4] + ") "
+#        pytextrankresults = ''
+#        for p in doc._.phrases:
+#            pytextrankresults += "(" + p.text + ' , ' + str(p.rank)[0:4] + ") "
 #            print("{:.4f} {:5d}  {}".format(p.rank, p.count, p.text))
         #    print(p.chunks)
-        print('PyTextRank:', pytextrankresults + "\n")
+#        print('PyTextRank:', pytextrankresults + "\n")
 
 
    

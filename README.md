@@ -29,4 +29,4 @@ TODO/WishList for SAL 9000 (feel free to add requests/bugs by replying to this p
 14. Eventually index the entire Slacker history on ElasticSearch - then we don't have to rely on Slack Search API, and can optimize our own search relevancy, results set, create topics/categorizes/facets, and build knowledgebase topic pages.
 15. Depluralize/Normalize: headless CMSs -> headless CMS
 16. Look into Duolingo open sourced Metasearch from @Duc Chau
-
+17. 3/10/22 Added OpenAI for extraction, replacing RAKE

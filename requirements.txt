@@ -2,7 +2,10 @@ python-rake
 slack_sdk
 google-cloud-secret-manager
 google-cloud-logging
+flask
 #rake-nltk
 #pytextrank
-
+#spacy
+openai
+rake_nltk
 
