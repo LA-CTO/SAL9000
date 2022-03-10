@@ -25,8 +25,6 @@ from flask import jsonify
 #openai
 import os
 import openai
-#TODO: load openai key from GCP Secrets Manager
-openai.api_key = "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"
 
 # Handle SAL9001 slash commands
 # Slack handleEvent webhook: https://us-west2-sal9000-307923.cloudfunctions.net/handleSlashCommand
@@ -88,6 +86,8 @@ def getGCPSecretKey(secretname):
     return response.payload.data.decode("UTF-8")
 SLACK_BOT_TOKEN = getGCPSecretKey('SLACK_BOT_TOKEN')
 SLACK_USER_TOKEN = getGCPSecretKey('SLACK_USER_TOKEN')
+
+openai.api_key = getGCPSecretKey('OPENAI_API_KEY')
 
 SLACK_WEB_CLIENT_BOT = WebClient(token=SLACK_BOT_TOKEN) 
 SLACK_WEB_CLIENT_USER = WebClient(token=SLACK_USER_TOKEN) 
@@ -504,6 +504,7 @@ def searchSlackMessages(text, resultCount, page, order):
 # Main for commandline run and quick tests
 # $env:GOOGLE_APPLICATION_CREDENTIALS="C:\code\SAL9000\SAL9000\sal9000-307923-a95b63614f84.json"
 if __name__ == "__main__":
+    print("openapi.key: ", openai.api_key)
     START_TIME = printTimeElapsed(START_TIME, 'main start')
 
     TEST_STRINGS = [
