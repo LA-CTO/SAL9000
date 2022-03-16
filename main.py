@@ -31,7 +31,7 @@ import openai
 # This webhook is set here: https://api.slack.com/apps/A01R8CEGVMF/slash-commands?
 #
 # Deployed to Google CLoud local - run from repo root dir:
-# gcloud functions deploy handleSlashCommand --runtime python39 --trigger-http --allow-unauthenticated --project=sal9000-307923 --region=us-west2
+# gcloud functions deploy handleEvent --runtime python39 --trigger-http --allow-unauthenticated --project=sal9000-307923 --region=us-west2
 #
 # /log [seconds] [error]
 def handleSlashCommand(request):
@@ -175,6 +175,20 @@ def extractKeyPhrasesOpenAI(extractMe, keywordsCap):
     returnList = returnList[:keywordsCap]
     return returnList
 
+# Return Q&A with OpenAI
+
+def qAndAOpenAI(answerMe):
+    response = openai.Completion.create(
+        engine="text-davinci-001",
+        prompt="I am a highly intelligent question answering bot. If you ask me a question that is rooted in truth, I will give you the answer. If you ask me a question that is nonsense, trickery, or has no clear answer, I will respond with \"Unknown\".\n\nQ: " + answerMe,
+        temperature=0,
+        max_tokens=100,
+        top_p=1,
+        frequency_penalty=0.0,
+        presence_penalty=0.0
+        )
+
+    return response
 
 # Deployed to Google CLoud local - run from repo root dir:
 # gcloud functions deploy keyphraseExtraction --runtime python39 --trigger-http --allow-unauthenticated --project=sal9000-307923 --region=us-west2
@@ -462,8 +476,9 @@ def constructBlock(eventAttributes):
                 continue
             if thread_ts == this_ts: #skip this parent post
                 continue
-            #Don't @user in search results, can get annying
-            searchResultsString += "<" + thisSearchResult['permalink'] + "|" + thisDate + " " + searchme + "> " + " from "+ thisUserName+ "\n"
+#            This @user is spammy
+#            searchResultsString += "<" + thisSearchResult['permalink'] + "|" + thisDate + " " + searchme + "> " + " from <@"+ thisUserName+ ">\n"
+            searchResultsString += "<" + thisSearchResult['permalink'] + "|" + thisDate + " " + searchme + "> " + " from " + thisUserName+ "\n"
             count += 1
 
     if len(searchResultsString) == 0:
@@ -508,10 +523,10 @@ if __name__ == "__main__":
     START_TIME = printTimeElapsed(START_TIME, 'main start')
 
     TEST_STRINGS = [
+        "Not sure where to post this: I'm looking for the recommendation of the dev shops that can absorb the product dev and support soup to nuts, preferably in LatAm, I've already reached out to EPAM, looking for more leads"
 #        "This has been asked a few times on here already, but curious if anyone has developed any strong opinions since the last time it was asked. What has worked the best for your front end teams in E2E testing React Native apps? Appium? Detox?",
-#        "I am looking for a good vendor who has integrations to all of the adtech systems out there to gather and normalize campaign performance data. Ideally, it would be a connector or api we can implement to aggregate campaign performance data.
-#   Also, we have a data lake in S3 and Snowflake, if that helps. Please let me know if anyone knows of any good providers in this space.  Thx!!"    
-        "Can someone point me to feature flagging best practices? How do you name your feature flags? How do you ensure a configuration of flags is compatible?"
+#        "I am looking for a good vendor who has integrations to all of the adtech systems out there to gather and normalize campaign performance data. Ideally, it would be a connector or api we can implement to aggregate campaign performance data.  Also, we have a data lake in S3 and Snowflake, if that helps. Please let me know if anyone knows of any good providers in this space.  Thx!!",    
+#        "Can someone point me to feature flagging best practices? How do you name your feature flags? How do you ensure a configuration of flags is compatible?"
         ]
     for extractme in TEST_STRINGS:
 #        print('Raking:', extractme)
@@ -519,6 +534,7 @@ if __name__ == "__main__":
 #        print('raked return top:', raked)
 
         print("OpenAI extracted phrases:", extractKeyPhrasesOpenAI(extractme, NUM_BUTTONS_FIRST_POST))
+        print("OpenAI answer:", qAndAOpenAI(extractme))
 
     #postMessageToSlackChannel('test', '', 'Hello from SAL 9001! :tada:')        
 
