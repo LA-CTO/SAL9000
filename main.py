@@ -19,7 +19,7 @@ from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
 import threading
 import re
-#import gcloud_logging
+import gcloud_logging
 from flask import jsonify
 
 #openai
@@ -30,7 +30,8 @@ import openai
 # Slack handleEvent webhook: https://us-west2-sal9000-307923.cloudfunctions.net/handleSlashCommand
 # This webhook is set here: https://api.slack.com/apps/A01R8CEGVMF/slash-commands?
 #
-# Deployed to Google CLoud local - run from repo root dir:
+# Deployed to Google CLoud local - run from repo root dir, first set env var for GCP credentials location:
+# $env:GOOGLE_APPLICATION_CREDENTIALS="C:\code\SAL9000\sal9000-307923-dfcc8f474f83.json"
 # gcloud functions deploy handleEvent --runtime python39 --trigger-http --allow-unauthenticated --project=sal9000-307923 --region=us-west2
 #
 # /log [seconds] [error]
@@ -101,11 +102,7 @@ NUM_BUTTONS_LATER = 10
 
 
 #Number of search results SAL returns
-NUM_SEARCH_RESULTS = 20
-
-TEST_USER = 'U5FGEALER' # Gene
-TEST_TS = '1617037271.224800'
-TEST_CHANNEL_ID = 'GUEPXFVDE' #test
+NUM_SEARCH_RESULTS = 10
 
 STOPWORDS_LIST=RAKE.SmartStopList()
 RAKE_OBJECT = RAKE.Rake(RAKE.SmartStopList())
@@ -476,9 +473,9 @@ def constructBlock(eventAttributes):
                 continue
             if thread_ts == this_ts: #skip this parent post
                 continue
-#            This @user is spammy
-#            searchResultsString += "<" + thisSearchResult['permalink'] + "|" + thisDate + " " + searchme + "> " + " from <@"+ thisUserName+ ">\n"
-            searchResultsString += "<" + thisSearchResult['permalink'] + "|" + thisDate + " " + searchme + "> " + " from " + thisUserName+ "\n"
+#            Doing @user will cause SAL to push notify the user.
+            searchResultsString += "<" + thisSearchResult['permalink'] + "|" + thisDate + " " + searchme + "> " + " from <@"+ thisUserName+ ">\n"
+#            searchResultsString += "<" + thisSearchResult['permalink'] + "|" + thisDate + " " + searchme + "> " + " from " + thisUserName+ "\n"
             count += 1
 
     if len(searchResultsString) == 0:
@@ -523,34 +520,49 @@ if __name__ == "__main__":
     START_TIME = printTimeElapsed(START_TIME, 'main start')
 
     TEST_STRINGS = [
-        "Not sure where to post this: I'm looking for the recommendation of the dev shops that can absorb the product dev and support soup to nuts, preferably in LatAm, I've already reached out to EPAM, looking for more leads"
+        "Okta not having a good morning:\nhttps://twitter.com/_MG_/status/1506109152665382920"
+#        "Not sure where to post this: I'm looking for the recommendation of the dev shops that can absorb the product dev and support soup to nuts, preferably in LatAm, I've already reached out to EPAM, looking for more leads"
 #        "This has been asked a few times on here already, but curious if anyone has developed any strong opinions since the last time it was asked. What has worked the best for your front end teams in E2E testing React Native apps? Appium? Detox?",
 #        "I am looking for a good vendor who has integrations to all of the adtech systems out there to gather and normalize campaign performance data. Ideally, it would be a connector or api we can implement to aggregate campaign performance data.  Also, we have a data lake in S3 and Snowflake, if that helps. Please let me know if anyone knows of any good providers in this space.  Thx!!",    
 #        "Can someone point me to feature flagging best practices? How do you name your feature flags? How do you ensure a configuration of flags is compatible?"
         ]
+    TEST_USER = 'U5FGEALER' # Gene
+    TEST_TS = '1647966951.236349'
+    TEST_CHANNEL_ID = 'GUEPXFVDE' #test
+
+
     for extractme in TEST_STRINGS:
-#        print('Raking:', extractme)
+        print('Extracting:', extractme)
 #        raked  = extractKeyPhrasesRAKE(extractme, NUM_BUTTONS_FIRST_POST, COMMON_WORDS_3K)
 #        print('raked return top:', raked)
 
-        print("OpenAI extracted phrases:", extractKeyPhrasesOpenAI(extractme, NUM_BUTTONS_FIRST_POST))
-        print("OpenAI answer:", qAndAOpenAI(extractme))
+#        print("OpenAI extracted phrases:", extractKeyPhrasesOpenAI(extractme, NUM_BUTTONS_FIRST_POST))
+#        print("OpenAI answer:", qAndAOpenAI(extractme))
 
-    #postMessageToSlackChannel('test', '', 'Hello from SAL 9001! :tada:')        
+#    postMessageToSlackChannel('test', '', 'Hello from SAL 9001! :tada:')        
 
     # Test Block construction which includes Slack Search
     # SALsays = constructBlock(TEST_USER, 'serverless', '')
     # print("SALsays: ", SALsays)
 
     # Test Constructing and posting new block to Slack
+
+    response = SLACK_WEB_CLIENT_USER.conversations_history(channel=TEST_CHANNEL_ID,latest=TEST_TS,limit=1,inclusive='true') 
+    thisMessage = ''
+    if response:
+#        print('retrived whole response: ', response)
+        thisMessage =  response.get('messages')[0].get('text')
+    print('thisMessage:', thisMessage)
+    print("OpenAI extracted phrases:", extractKeyPhrasesOpenAI(thisMessage, NUM_BUTTONS_FIRST_POST))
+
     eventAttributes = {
-        'text': TEST_STRINGS[0], 
+        'text': thisMessage, 
         'channel_id': TEST_CHANNEL_ID, 
         'thread_ts': TEST_TS, 
         'user': TEST_USER,
         'keyphrasesCap': NUM_BUTTONS_FIRST_POST
         }
-#    constructAndPostBlock(eventAttributes)
+    constructAndPostBlock(eventAttributes)
 
     START_TIME = printTimeElapsed(VERY_BEGINNING_TIME, 'total')
 
