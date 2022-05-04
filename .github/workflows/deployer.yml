@@ -1,0 +1,35 @@
+name: Deployment
+
+# on commit push, run job
+on: [push]
+
+jobs:
+  run:
+    # worker runs on latest ubuntu
+    runs-on: ubuntu-latest
+
+    steps:
+    # checkout to our repository so we have access to the source code
+    - uses: actions/checkout@v2
+    
+    # the actual deployment to google
+    - name: Cloud Functions Deploy
+      uses: google-github-actions/deploy-cloud-functions@v0.1.2
+      with:
+        credentials: ${{ secrets.GCP_SA_KEY }}
+        name: SAL9001
+        description: SAL9001 deployment # nullable
+        project_id: ${{ secrets.GCP_PROJECT_ID }}
+        region: west2
+        source_dir: ./
+        # name of our function in our main.py file, defaults to the resource name suffix 
+        entry_point: handleEvent
+        # runtime to use for the function
+        runtime: python39
+        # the function execution timeout
+        timeout: 60
+        # the maximum number of instances for the function.
+        max_instances: 1
+        # optional configs, see google-cloud-actions/deploy-cloud-functions for full reference
+        # list of key-value pairs to set as environment variables in the form KEY1=VALUE1,KEY2=VALUE2.
+#       env_vars: # optional
