@@ -26,6 +26,62 @@ from flask import jsonify
 import os
 import openai
 
+def printTimeElapsed(starttime, label):
+    endtime = datetime.utcnow()
+    print(str(endtime-starttime)[:-4] + " " + label)
+    return endtime
+
+START_TIME = printTimeElapsed(START_TIME, 'import time')
+GCP_PROJECT_ID = "sal9000-307923"
+
+# TODO:  Put SLACK_BOT_TOKEN and SLACK_USER_TOKEN in Google Secret Manager https://dev.to/googlecloud/using-secrets-in-google-cloud-functions-5aem
+# TODO: SecretManager actually takes over 3 seconds to load module and look up secret keys!!  Gonna hardcode Slack OAuth tokens for now, if they
+# get stolen I'll just reissue new ones
+#
+# Need to update Slack tokens as Slack expire them, either through console or gcloud:
+# gcloud secrets versions add SLACK_BOT_TOKEN --data-file=secret.txt  --project=sal9000-307923 
+
+client = secretmanager.SecretManagerServiceClient()
+START_TIME = printTimeElapsed(START_TIME, 'secretmanager.SecretManagerServiceClient90')
+def getGCPSecretKey(secretname):
+    request = {"name": f"projects/{GCP_PROJECT_ID}/secrets/{secretname}/versions/latest"}
+    response = client.access_secret_version(request)
+    return response.payload.data.decode("UTF-8")
+SLACK_BOT_TOKEN = getGCPSecretKey('SLACK_BOT_TOKEN')
+SLACK_USER_TOKEN = getGCPSecretKey('SLACK_USER_TOKEN')
+
+openai.api_key = getGCPSecretKey('OPENAI_API_KEY')
+
+SLACK_WEB_CLIENT_BOT = WebClient(token=SLACK_BOT_TOKEN) 
+SLACK_WEB_CLIENT_USER = WebClient(token=SLACK_USER_TOKEN) 
+
+#Number of search buttons for SAL to render
+NUM_BUTTONS_FIRST_POST = 5
+NUM_BUTTONS_LATER = 5
+
+#Number of search results SAL returns
+NUM_SEARCH_RESULTS = 6
+
+STOPWORDS_LIST=RAKE.SmartStopList()
+RAKE_OBJECT = RAKE.Rake(RAKE.SmartStopList())
+
+COMMON_WORDS_3K = {''}
+"""
+COMMON_WORDS_3K_FILE = open('3kcommonwords.txt')
+with COMMON_WORDS_3K_FILE as reader:
+    for this_word in reader:
+        this_word = this_word.rstrip()
+        COMMON_WORDS_3K.add(this_word)
+print("3K set has : ", len(COMMON_WORDS_3K))
+"""
+ENDPOINT_URL = "https://us-west2-sal9000-307923.cloudfunctions.net/keyphraseExtraction?message="
+
+SAL_USER = 'U01R035QE3Z'
+SAL_IMAGE = 'https://bit.ly/39eK1bY'
+SAL_THIN_IMAGE = 'https://files.slack.com/files-pri/T5FGEAL8M-F01SXUR4CJD/sal_thin.jpg?pub_secret=97e5e68214'
+
+START_TIME = printTimeElapsed(START_TIME, 'all initialization time')
+
 # Handle SAL9001 slash commands
 # Slack handleEvent webhook: https://us-west2-sal9000-307923.cloudfunctions.net/handleSlashCommand
 # This webhook is set here: https://api.slack.com/apps/A01R8CEGVMF/slash-commands?
@@ -63,66 +119,6 @@ def handleSlashCommand(request):
             rtnText += "`* {}: {}`\n".format(timestamp, entry.payload)
 #        print('/log rtnText', rtnText)
         return jsonify(response_type='in_channel',text=rtnText)
-
-def printTimeElapsed(starttime, label):
-    endtime = datetime.utcnow()
-    print(str(endtime-starttime)[:-4] + " " + label)
-    return endtime
-
-START_TIME = printTimeElapsed(START_TIME, 'import time')
-GCP_PROJECT_ID = "sal9000-307923"
-
-# TODO:  Put SLACK_BOT_TOKEN and SLACK_USER_TOKEN in Google Secret Manager https://dev.to/googlecloud/using-secrets-in-google-cloud-functions-5aem
-# TODO: SecretManager actually takes over 3 seconds to load module and look up secret keys!!  Gonna hardcode Slack OAuth tokens for now, if they
-# get stolen I'll just reissue new ones
-#
-# Need to update Slack tokens as Slack expire them, either through console or gcloud:
-# gcloud secrets versions add SLACK_BOT_TOKEN --data-file=secret.txt  --project=sal9000-307923 
-
-client = secretmanager.SecretManagerServiceClient()
-START_TIME = printTimeElapsed(START_TIME, 'secretmanager.SecretManagerServiceClient90')
-def getGCPSecretKey(secretname):
-    request = {"name": f"projects/{GCP_PROJECT_ID}/secrets/{secretname}/versions/latest"}
-    response = client.access_secret_version(request)
-    return response.payload.data.decode("UTF-8")
-SLACK_BOT_TOKEN = getGCPSecretKey('SLACK_BOT_TOKEN')
-SLACK_USER_TOKEN = getGCPSecretKey('SLACK_USER_TOKEN')
-
-openai.api_key = getGCPSecretKey('OPENAI_API_KEY')
-
-SLACK_WEB_CLIENT_BOT = WebClient(token=SLACK_BOT_TOKEN) 
-SLACK_WEB_CLIENT_USER = WebClient(token=SLACK_USER_TOKEN) 
-
-#For Slack Search API: https://api.slack.com/methods/search.messages
-SLACK_SEARCH_URL = 'https://slack.com/api/search.messages'
-
-#Number of search buttons for SAL to render
-NUM_BUTTONS_FIRST_POST = 5
-NUM_BUTTONS_LATER = 10
-
-
-#Number of search results SAL returns
-NUM_SEARCH_RESULTS = 10
-
-STOPWORDS_LIST=RAKE.SmartStopList()
-RAKE_OBJECT = RAKE.Rake(RAKE.SmartStopList())
-
-COMMON_WORDS_3K = {''}
-"""
-COMMON_WORDS_3K_FILE = open('3kcommonwords.txt')
-with COMMON_WORDS_3K_FILE as reader:
-    for this_word in reader:
-        this_word = this_word.rstrip()
-        COMMON_WORDS_3K.add(this_word)
-print("3K set has : ", len(COMMON_WORDS_3K))
-"""
-ENDPOINT_URL = "https://us-west2-sal9000-307923.cloudfunctions.net/keyphraseExtraction?message="
-
-SAL_USER = 'U01R035QE3Z'
-SAL_IMAGE = 'https://bit.ly/39eK1bY'
-SAL_THIN_IMAGE = 'https://files.slack.com/files-pri/T5FGEAL8M-F01SXUR4CJD/sal_thin.jpg?pub_secret=97e5e68214'
-
-START_TIME = printTimeElapsed(START_TIME, 'all initialization time')
 
 def RAKEPhraseExtraction(extractString):
     extractString = removeURLsFromText(extractString)
@@ -219,20 +215,29 @@ def keyphraseExtraction(request):
 
     return str(extractedKeyPhrases)
 
-# Slack handleEvent webhook: https://us-west2-sal9000-307923.cloudfunctions.net/handleEvent
-# Event handler for 3 types of events:
-# 1) New message to public channel (message.channels) or private channel (message.groups), events registered here: https://api.slack.com/apps/A01R8CEGVMF/event-subscriptions?
-# EventSubscription detected a top post in channel, SAL9000 to extract KeyPhrase, Search and Respond
-# 2) User adds :sal9001: emoji to post, SAL to reply to that post
-# 3) Interactive user push search button. Registered here: https://api.slack.com/apps/A01R8CEGVMF/interactive-messages
-# Use selected a keyphrase from SAL9001 first response, perform Search and Respond with search results
-#
-# Deployed to Google CLoud local - run from repo root dir:
-# gcloud functions deploy handleEvent --runtime python39 --trigger-http --allow-unauthenticated --project=sal9000-307923 --region=us-west2
-#
+"""
+Args:
+    request (flask.Request): The request object
+Returns:
+    The response text, or any set of values that can be turned into a
+    Response object using `make_response`
+
+Slack handleEvent webhook: https://us-west2-sal9000-307923.cloudfunctions.net/handleEvent
+Event handler for 3 types of events:
+1) New message to public channel (message.channels) or private channel (message.groups), events registered here: https://api.slack.com/apps/A01R8CEGVMF/event-subscriptions?
+EventSubscription detected a top post in channel, SAL9000 to extract KeyPhrase, Search and Respond
+2) User adds :sal9001: emoji to post, SAL to reply to that post
+3) Interactive user push search button. Registered here: https://api.slack.com/apps/A01R8CEGVMF/interactive-messages
+Use selected a keyphrase from SAL9001 first response, perform Search and Respond with search results
+
+Deployed to Google CLoud local - run from repo root dir:
+gcloud functions deploy handleEvent --runtime python39 --trigger-http --allow-unauthenticated --project=sal9000-307923 --region=us-west2
+
+"""
+
 def handleEvent(request):
     print("handleEvent request: ", request)
-   
+
     # Google Scheduler 5 minute warmer
     # https://us-west2-sal9000-307923.cloudfunctions.net/handleEvent?warmer=true
     if request.args.get('warmer'): 
@@ -241,13 +246,17 @@ def handleEvent(request):
 
     # Don't handle any retry requests - Slack sends retries if it doesn't get response in 3 seconds
     retryNum = request.headers.get('X-Slack-Retry-Num')
-    if retryNum and int(retryNum) > 1:
-        print('handleEvent retryNum: ', retryNum)
+    print('handleEvent retryNum: ', retryNum)
+    if retryNum and int(retryNum) >= 1:
         return json.dumps({'success':True}), 200, {'ContentType':'application/json'} 
     
-    request_json = request.get_json()
     eventAttributes = {}
+    request_json = request.get_json()
+    print("handleEvent request.get_json(): ", request_json)
+
+#    if request.method == 'GET': # GET - must be new post event message.channels or message.groups
     if request_json: # GET - must be new post event message.channels or message.groups
+        print("handleEvent GET request: ", request)
         if 'challenge' in request_json:
         #Slack url_verification challenge https://api.slack.com/events/url_verification
             return request_json['challenge']
@@ -293,7 +302,8 @@ def handleEvent(request):
                 print("This GET request fell through all filters, event: ", event)
         else:
             print("This message has no event element?? Doing nothing...")
-    else: # POST - Interactive event
+#    elif request.method == 'POST': # POST - either /log command or user push search button event
+    else: # POST - either /log command or user push search button event
         postForm = request.form
         print("handleEvent POST form:", postForm)
         if 'command' in postForm and postForm.get('command') == '/log':
@@ -386,6 +396,7 @@ def constructBlock(eventAttributes):
     text = eventAttributes['text']
     user = eventAttributes['user']
     keyphrasesCap = eventAttributes['keyphrasesCap']
+    channel_id = eventAttributes['channel_id']
     searchme = ''
     order = 'asc'
     if 'searchme' in eventAttributes:
@@ -458,7 +469,7 @@ def constructBlock(eventAttributes):
 
     searchResultsString = ''
     if len(searchme) > 1: #don't bother searching if searchme length <= 1
-        searchResults = searchSlackMessages(searchme, NUM_SEARCH_RESULTS, 1, order)
+        searchResults = searchSlackMessages(searchme, channel_id, NUM_SEARCH_RESULTS, 1, order)
         count = 1
         thread_ts = ''
         if 'thread_ts' in eventAttributes:
@@ -507,9 +518,12 @@ def removeURLsFromText(text):
 # query=text, count=20, highlight=true, page=1, sort=score/timestamp, sort_dir=desc/asc, team_id=T1234567890
 #
 # Returns json of results as described: https://api.slack.com/methods/search.messages  
-def searchSlackMessages(text, resultCount, page, order):
+def searchSlackMessages(text, channel_id, resultCount, page, order):
 
-    response = SLACK_WEB_CLIENT_USER.search_messages(query=text, sort='timestamp', sort_dir=order, count=resultCount, page=page) 
+# Need to get dynamic channel id search to work
+#    response = SLACK_WEB_CLIENT_USER.search_messages(query='in:#' + channel_id + ' "' + text + '"', sort='timestamp', sort_dir=order, count=resultCount, page=page)
+    response = SLACK_WEB_CLIENT_USER.search_messages(query='in:#techandtools "' + text + '"', sort='timestamp', sort_dir=order, count=resultCount, page=page)
+
 #    print ('search response: ', response)
     return response
 
