@@ -20,7 +20,7 @@ jobs:
         name: SAL9001
         description: SAL9001 deployment # nullable
         project_id: ${{ secrets.GCP_PROJECT_ID }}
-        region: west2
+        region: us-west2
         source_dir: ./
         # name of our function in our main.py file, defaults to the resource name suffix 
         entry_point: handleEvent
