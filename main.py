@@ -151,6 +151,9 @@ def extractKeyPhrasesRAKE(stringArray, keywordsCap, removeCommonWords):
 
 # Return the extracted key phrases using Open AI
 def extractKeyPhrasesOpenAI(extractMe, keywordsCap):
+    #Gonna strip all URLs from text for now
+    extractMe  = removeURLsFromText(extractMe)
+    print("stripped URLs", extractMe)
     response = openai.Completion.create(
         engine="text-davinci-001",
         prompt="Extract keywords from this text:\n\n" + extractMe, 
@@ -507,9 +510,12 @@ def constructBlock(eventAttributes):
  
     return slack_block_kit
 
-
+"""
+Removes all URLs from text.  First strip <https:> tags then https: urls
+"""
 def removeURLsFromText(text):
-    return re.sub(r'<?http\S+', '', text)
+    text = re.sub(r'<?http\S+', '', text)
+    return re.sub(r'http\S+', '', text)
 
 # defining a params dict for the parameters to be sent to the API 
 # https://api.slack.com/methods/search.messages
@@ -534,23 +540,24 @@ if __name__ == "__main__":
     START_TIME = printTimeElapsed(START_TIME, 'main start')
 
     TEST_STRINGS = [
-        "Okta not having a good morning:\nhttps://twitter.com/_MG_/status/1506109152665382920"
+        "I posted a new article for Gene's Core Dump! Reposted content in comment as well.  https://genechuang.substack.com/p/you-can-teach-an-old-dog-new-tricks?s=w"
+#        "Okta not having a good morning:\nhttps://twitter.com/_MG_/status/1506109152665382920"
 #        "Not sure where to post this: I'm looking for the recommendation of the dev shops that can absorb the product dev and support soup to nuts, preferably in LatAm, I've already reached out to EPAM, looking for more leads"
 #        "This has been asked a few times on here already, but curious if anyone has developed any strong opinions since the last time it was asked. What has worked the best for your front end teams in E2E testing React Native apps? Appium? Detox?",
 #        "I am looking for a good vendor who has integrations to all of the adtech systems out there to gather and normalize campaign performance data. Ideally, it would be a connector or api we can implement to aggregate campaign performance data.  Also, we have a data lake in S3 and Snowflake, if that helps. Please let me know if anyone knows of any good providers in this space.  Thx!!",    
 #        "Can someone point me to feature flagging best practices? How do you name your feature flags? How do you ensure a configuration of flags is compatible?"
         ]
     TEST_USER = 'U5FGEALER' # Gene
-    TEST_TS = '1647966951.236349'
+    TEST_TS = '1651781513.661709'
     TEST_CHANNEL_ID = 'GUEPXFVDE' #test
 
 
     for extractme in TEST_STRINGS:
-        print('Extracting:', extractme)
+        print('Extracting static text:', extractme)
 #        raked  = extractKeyPhrasesRAKE(extractme, NUM_BUTTONS_FIRST_POST, COMMON_WORDS_3K)
 #        print('raked return top:', raked)
 
-#        print("OpenAI extracted phrases:", extractKeyPhrasesOpenAI(extractme, NUM_BUTTONS_FIRST_POST))
+        print("OpenAI extracted phrases:", extractKeyPhrasesOpenAI(extractme, NUM_BUTTONS_FIRST_POST))
 #        print("OpenAI answer:", qAndAOpenAI(extractme))
 
 #    postMessageToSlackChannel('test', '', 'Hello from SAL 9001! :tada:')        
@@ -566,7 +573,7 @@ if __name__ == "__main__":
     if response:
 #        print('retrived whole response: ', response)
         thisMessage =  response.get('messages')[0].get('text')
-    print('thisMessage:', thisMessage)
+    print('Extracting real Slack message:', thisMessage)
     print("OpenAI extracted phrases:", extractKeyPhrasesOpenAI(thisMessage, NUM_BUTTONS_FIRST_POST))
 
     eventAttributes = {
