@@ -298,6 +298,9 @@ def handleEvent(request):
                     return json.dumps({'success':True}), 200, {'ContentType':'application/json'} 
 
                 elif 'thread_ts' not in event : #User top post in channel, SAL to respond in thread for first time
+                    print("main.handleEvent about to construct eventAttributes with event[]: ", event)
+                    print("main.handleEvent about to construct eventAttributes with event['channel']: ", event['channel'])
+
                     eventAttributes = {
                         'user': event['user'],
                         'channel_id': event['channel'],
@@ -467,8 +470,8 @@ def constructBlock(eventAttributes):
     starttime = datetime.utcnow()
     text = eventAttributes['text']
     user = eventAttributes['user']
-    keyphrasesCap = eventAttributes['keyphrasesCap']
     channel_id = eventAttributes['channel_id']
+    keyphrasesCap = eventAttributes['keyphrasesCap']
     searchme = ''
     order = 'asc'
     if 'searchme' in eventAttributes:
@@ -595,10 +598,12 @@ def removeURLsFromText(text):
 #
 # Returns json of results as described: https://api.slack.com/methods/search.messages  
 def searchSlackMessages(text, channel_id, resultCount, page, order):
+    print ('searchSlackMessages in channel_id: ', channel_id)
 
-# Need to get dynamic channel id search to work
-#    response = SLACK_WEB_CLIENT_USER.search_messages(query='in:#' + channel_id + ' "' + text + '"', sort='timestamp', sort_dir=order, count=resultCount, page=page)
-    response = SLACK_WEB_CLIENT_USER.search_messages(query='in:#techandtools "' + text + '"', sort='timestamp', sort_dir=order, count=resultCount, page=page)
+# TODO: search in current channel by getting channel name from https://api.slack.com/methods/conversations.list
+#    response = SLACK_WEB_CLIENT_USER.search_messages(query='in:#' + channel_name + ' "' + text + '"', sort='timestamp', sort_dir=order, count=resultCount, page=page)
+    response = SLACK_WEB_CLIENT_USER.search_messages(query='"' + text + '"', sort='timestamp', sort_dir=order, count=resultCount, page=page)
+# hard coded #techandtools channel name
 
 #    print ('search response: ', response)
     return response
@@ -620,6 +625,7 @@ if __name__ == "__main__":
     TEST_USER = 'U5FGEALER' # Gene
     TEST_TS = '1652119671.997739'
     TEST_CHANNEL_ID = 'GUEPXFVDE' #test
+    TEST_CHANNEL_NAME = 'test' #test
 
 
 #    for extractme in TEST_STRINGS:
@@ -632,10 +638,6 @@ if __name__ == "__main__":
 #        print("OpenAI answer:", qAndAOpenAI(extractme))
 
 #    postMessageToSlackChannel('test', '', 'Hello from SAL 9001! :tada:')        
-
-    # Test Block construction which includes Slack Search
-    # SALsays = constructBlock(TEST_USER, 'serverless', '')
-    # print("SALsays: ", SALsays)
 
     # Test Constructing and posting new block to Slack
 
