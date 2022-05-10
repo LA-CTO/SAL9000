@@ -152,8 +152,8 @@ def extractKeyPhrasesRAKE(stringArray, keywordsCap, removeCommonWords):
 # Return the extracted key phrases using Open AI
 def extractKeyPhrasesOpenAI(extractMe, keywordsCap):
     #Gonna strip all URLs from text for now
-    extractMe  = removeURLsFromText(extractMe)
-    print("stripped URLs", extractMe)
+#    extractMe  = removeURLsFromText(extractMe)
+#    print("stripped URLs", extractMe)
     response = openai.Completion.create(
         engine="text-davinci-001",
         prompt="Extract keywords from this text:\n\n" + extractMe, 
@@ -184,6 +184,21 @@ def qAndAOpenAI(answerMe):
         presence_penalty=0.0
         )
 
+    return response
+
+# Return TL;DR summarization with OpenAI
+
+def tldrOpenAI(summarizeMe):
+    response = openai.Completion.create(
+        engine="text-davinci-002",
+        prompt=summarizeMe +"\n\nTl;dr",
+        temperature=0.7,
+        max_tokens=60,
+        top_p=1.0,
+        frequency_penalty=0.0,
+        presence_penalty=0.0
+        )
+    response =  response.choices[0].text
     return response
 
 # Deployed to Google CLoud local - run from repo root dir:
@@ -269,16 +284,27 @@ def handleEvent(request):
                 print('This is a bot message so not responding to it')
             elif event.get("subtype"):
                 print('This is subtype so not responding to it: ', event.get("subtype"))
-            elif 'text' in event and 'thread_ts' not in event and not event.get('text').startswith("/"): #User top post, SAL to respond for first time
+            elif 'text' in event and 'thread_ts' not in event and not event.get('text').startswith("/"): #User top post, SAL to respond for first time OR DM directly with SAL9001, activate Sarcastic SAL Chatbot
                 print("main.handleEvent GET text: ", event['text'])
-                eventAttributes = {
-                    'user': event['user'],
-                    'channel_id': event['channel'],
-                    'thread_ts': event['ts'],
-                    'text': event['text'],
-                    'searchme': '',
-                    'keyphrasesCap': NUM_BUTTONS_FIRST_POST 
-                }
+                channel_type = event['channel_type']
+                if 'im' == channel_type: # DM with @SAL9001 - activate Sarcastic SAL Chatbot
+                    eventAttributes = {
+                        'user': event['user'],
+                        'channel_id': event['channel'],
+                        'text': event['text']
+                    }
+                    sarcasticSAL(eventAttributes)
+                    return json.dumps({'success':True}), 200, {'ContentType':'application/json'} 
+
+                else: #User top post in channel, SAL to respond in thread for first time
+                    eventAttributes = {
+                        'user': event['user'],
+                        'channel_id': event['channel'],
+                        'thread_ts': event['ts'],
+                        'text': event['text'],
+                        'searchme': '',
+                        'keyphrasesCap': NUM_BUTTONS_FIRST_POST 
+                    }
             elif 'reaction_added' == event.get('type') and "sal9001" == event.get('reaction') and 'message' == event.get('item').get('type'): #User add sal9001 emoji::
                 print('main.handleEven GET :sal9001: emoji payload:', event)
                 channel_id = event.get('item').get('channel')
@@ -387,6 +413,37 @@ def postBlockToSlackChannel(eventAttributes, block):
                 attachments=[] #zero out attachments just in case
             )
 
+    except SlackApiError as e:
+        # You will get a SlackApiError if "ok" is False
+        print('error postBlockToSlackChannel:', e)
+        assert e.response["error"]    # str like 'invalid_auth', 'channel_not_found'
+    return response    
+
+"""
+sarcasticSAL takes eventAttributes with channel_id and text and calls OpenAI Marv to get a sarcastic response and posts in channel
+"""
+def sarcasticSAL(eventAttributes):
+    channel_id = eventAttributes['channel_id']
+    text = eventAttributes['text']
+    response = ''
+
+    response = openai.Completion.create(
+        engine="text-davinci-002",
+        prompt="Marv is a chatbot that reluctantly answers questions with sarcastic responses:\n\nYou: " + text + "\n",
+        temperature=0.5,
+        max_tokens=60,
+        top_p=0.3,
+        frequency_penalty=0.5,
+        presence_penalty=0.0
+    )
+    responseTxt = response.choices[0].text[6:]
+
+    try:
+        print('sarcastic sal response:', responseTxt)
+        response = SLACK_WEB_CLIENT_BOT.chat_postMessage(
+            channel = channel_id,
+                text = responseTxt
+            )
     except SlackApiError as e:
         # You will get a SlackApiError if "ok" is False
         print('error postBlockToSlackChannel:', e)
@@ -540,24 +597,25 @@ if __name__ == "__main__":
     START_TIME = printTimeElapsed(START_TIME, 'main start')
 
     TEST_STRINGS = [
-        "I posted a new article for Gene's Core Dump! Reposted content in comment as well.  https://genechuang.substack.com/p/you-can-teach-an-old-dog-new-tricks?s=w"
-#        "Okta not having a good morning:\nhttps://twitter.com/_MG_/status/1506109152665382920"
-#        "Not sure where to post this: I'm looking for the recommendation of the dev shops that can absorb the product dev and support soup to nuts, preferably in LatAm, I've already reached out to EPAM, looking for more leads"
-#        "This has been asked a few times on here already, but curious if anyone has developed any strong opinions since the last time it was asked. What has worked the best for your front end teams in E2E testing React Native apps? Appium? Detox?",
-#        "I am looking for a good vendor who has integrations to all of the adtech systems out there to gather and normalize campaign performance data. Ideally, it would be a connector or api we can implement to aggregate campaign performance data.  Also, we have a data lake in S3 and Snowflake, if that helps. Please let me know if anyone knows of any good providers in this space.  Thx!!",    
-#        "Can someone point me to feature flagging best practices? How do you name your feature flags? How do you ensure a configuration of flags is compatible?"
+        "Anyone used https://www.thoughtspot.com/ before or currently using it?"
+        "Okta not having a good morning:\nhttps://twitter.com/_MG_/status/1506109152665382920"
+        "Not sure where to post this: I'm looking for the recommendation of the dev shops that can absorb the product dev and support soup to nuts, preferably in LatAm, I've already reached out to EPAM, looking for more leads"
+        "This has been asked a few times on here already, but curious if anyone has developed any strong opinions since the last time it was asked. What has worked the best for your front end teams in E2E testing React Native apps? Appium? Detox?",
+        "I am looking for a good vendor who has integrations to all of the adtech systems out there to gather and normalize campaign performance data. Ideally, it would be a connector or api we can implement to aggregate campaign performance data.  Also, we have a data lake in S3 and Snowflake, if that helps. Please let me know if anyone knows of any good providers in this space.  Thx!!",    
+        "Can someone point me to feature flagging best practices? How do you name your feature flags? How do you ensure a configuration of flags is compatible?"
         ]
     TEST_USER = 'U5FGEALER' # Gene
-    TEST_TS = '1651781513.661709'
+    TEST_TS = '1652119671.997739'
     TEST_CHANNEL_ID = 'GUEPXFVDE' #test
 
 
-    for extractme in TEST_STRINGS:
-        print('Extracting static text:', extractme)
+#    for extractme in TEST_STRINGS:
+#        print('\nmain test Original text:', extractme)
 #        raked  = extractKeyPhrasesRAKE(extractme, NUM_BUTTONS_FIRST_POST, COMMON_WORDS_3K)
 #        print('raked return top:', raked)
 
-        print("OpenAI extracted phrases:", extractKeyPhrasesOpenAI(extractme, NUM_BUTTONS_FIRST_POST))
+#        print("OpenAI extracted phrases:", extractKeyPhrasesOpenAI(extractme, NUM_BUTTONS_FIRST_POST))
+#        print("OpenAI tldr:", tldrOpenAI(extractme))
 #        print("OpenAI answer:", qAndAOpenAI(extractme))
 
 #    postMessageToSlackChannel('test', '', 'Hello from SAL 9001! :tada:')        
@@ -568,22 +626,22 @@ if __name__ == "__main__":
 
     # Test Constructing and posting new block to Slack
 
-    response = SLACK_WEB_CLIENT_USER.conversations_history(channel=TEST_CHANNEL_ID,latest=TEST_TS,limit=1,inclusive='true') 
-    thisMessage = ''
-    if response:
+#    response = SLACK_WEB_CLIENT_USER.conversations_history(channel=TEST_CHANNEL_ID,latest=TEST_TS,limit=1,inclusive='true') 
+    thisMessage = 'Who is your daddy and what does he do?'
+#    if response:
 #        print('retrived whole response: ', response)
-        thisMessage =  response.get('messages')[0].get('text')
-    print('Extracting real Slack message:', thisMessage)
-    print("OpenAI extracted phrases:", extractKeyPhrasesOpenAI(thisMessage, NUM_BUTTONS_FIRST_POST))
+#        thisMessage =  response.get('messages')[0].get('text')
+#    print('Extracting real Slack message:', thisMessage)
+#    print("OpenAI extracted phrases:", extractKeyPhrasesOpenAI(thisMessage, NUM_BUTTONS_FIRST_POST))
 
     eventAttributes = {
         'text': thisMessage, 
         'channel_id': TEST_CHANNEL_ID, 
-        'thread_ts': TEST_TS, 
         'user': TEST_USER,
-        'keyphrasesCap': NUM_BUTTONS_FIRST_POST
         }
-    constructAndPostBlock(eventAttributes)
+    sarcasticSAL(eventAttributes)
+
+#    constructAndPostBlock(eventAttributes)
 
     START_TIME = printTimeElapsed(VERY_BEGINNING_TIME, 'total')
 
