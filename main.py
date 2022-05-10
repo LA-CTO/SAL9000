@@ -269,12 +269,11 @@ def handleEvent(request):
         return json.dumps({'success':True}), 200, {'ContentType':'application/json'} 
     
     eventAttributes = {}
-    request_json = request.get_json()
-    print("handleEvent request.get_json(): ", request_json)
 
 #    if request.method == 'GET': # GET - must be new post event message.channels or message.groups
-    if request_json: # GET - must be new post event message.channels or message.groups
-        print("handleEvent GET request: ", request)
+    if request.is_json: # GET - must be new post event message.channels or message.groups
+        request_json = request.get_json()
+        print("handleEvent request.get_json(): ", request_json)
         if 'challenge' in request_json:
         #Slack url_verification challenge https://api.slack.com/events/url_verification
             return request_json['challenge']
@@ -284,19 +283,20 @@ def handleEvent(request):
                 print('This is a bot message so not responding to it')
             elif event.get("subtype"):
                 print('This is subtype so not responding to it: ', event.get("subtype"))
-            elif 'text' in event and 'thread_ts' not in event and not event.get('text').startswith("/"): #User top post, SAL to respond for first time OR DM directly with SAL9001, activate Sarcastic SAL Chatbot
+            elif 'text' in event and not event.get('text').startswith("/"): #User top post, SAL to respond for first time OR DM directly with SAL9001, activate Sarcastic SAL Chatbot
                 print("main.handleEvent GET text: ", event['text'])
                 channel_type = event['channel_type']
-                if 'im' == channel_type: # DM with @SAL9001 - activate Sarcastic SAL Chatbot
+                if 'im' == channel_type or ('thread_ts' in event and SAL_USER in event.get('text')): # DM with @SAL9001 or user evoked SAL in thread - activate Sarcastic SAL Chatbot
                     eventAttributes = {
                         'user': event['user'],
                         'channel_id': event['channel'],
+                        'thread_ts': event['ts'],
                         'text': event['text']
                     }
                     sarcasticSAL(eventAttributes)
                     return json.dumps({'success':True}), 200, {'ContentType':'application/json'} 
 
-                else: #User top post in channel, SAL to respond in thread for first time
+                elif 'thread_ts' not in event : #User top post in channel, SAL to respond in thread for first time
                     eventAttributes = {
                         'user': event['user'],
                         'channel_id': event['channel'],
@@ -422,11 +422,7 @@ def postBlockToSlackChannel(eventAttributes, block):
 """
 sarcasticSAL takes eventAttributes with channel_id and text and calls OpenAI Marv to get a sarcastic response and posts in channel
 """
-def sarcasticSAL(eventAttributes):
-    channel_id = eventAttributes['channel_id']
-    text = eventAttributes['text']
-    response = ''
-
+def sarcasticSALResponse(text):
     response = openai.Completion.create(
         engine="text-davinci-002",
         prompt="Marv is a chatbot that reluctantly answers questions with sarcastic responses:\n\nYou: " + text + "\n",
@@ -436,13 +432,21 @@ def sarcasticSAL(eventAttributes):
         frequency_penalty=0.5,
         presence_penalty=0.0
     )
-    responseTxt = response.choices[0].text[6:]
+    responseTxt = response.choices[0].text[6:] #skip the first 6 chars which is "Marv: "
+    print('sarcastic sal response:', responseTxt)
+    return responseTxt
+
+def sarcasticSAL(eventAttributes):
+    channel_id = eventAttributes['channel_id']
+    thread_ts = eventAttributes['thread_ts']
+    text = eventAttributes['text']
+    response = sarcasticSALResponse(text)
 
     try:
-        print('sarcastic sal response:', responseTxt)
         response = SLACK_WEB_CLIENT_BOT.chat_postMessage(
-            channel = channel_id,
-                text = responseTxt
+                channel = channel_id,
+                thread_ts=thread_ts,
+                text = response
             )
     except SlackApiError as e:
         # You will get a SlackApiError if "ok" is False
@@ -468,10 +472,11 @@ def constructBlock(eventAttributes):
 #    extractedKeyPhrases = extractKeyPhrasesRAKE(text, keyphrasesCap, COMMON_WORDS_3K)
     extractedKeyPhrases = extractKeyPhrasesOpenAI(text, keyphrasesCap)
 
+    sarcasticResponse = sarcasticSALResponse(text)
     if(len(extractedKeyPhrases) < 0):
-        greetings =  "Hello <@" + user + "> I don't know what you want"
+        greetings = sarcasticResponse + "\nIf you don't like my brilliant answer, tough luck because none of your fellow Slackers know about this.\n"
     else:
-        greetings ="Hello <@" + user +"> please pick a keyphrase for me to search my memory banks: " + "\n"
+        greetings = sarcasticResponse + "\nIf you don't like my brilliant answer, pick old answers from your fellow Slackers.\n"
 
     slack_block_kit = [
         {
