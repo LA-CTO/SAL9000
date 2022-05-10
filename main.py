@@ -291,6 +291,7 @@ def handleEvent(request):
                         'user': event['user'],
                         'channel_id': event['channel'],
                         'thread_ts': event['ts'],
+                        'channel_type': channel_type,
                         'text': event['text']
                     }
                     sarcasticSAL(eventAttributes)
@@ -440,14 +441,21 @@ def sarcasticSAL(eventAttributes):
     channel_id = eventAttributes['channel_id']
     thread_ts = eventAttributes['thread_ts']
     text = eventAttributes['text']
+    channel_type = eventAttributes['channel_type']
     response = sarcasticSALResponse(text)
 
     try:
-        response = SLACK_WEB_CLIENT_BOT.chat_postMessage(
-                channel = channel_id,
-                thread_ts=thread_ts,
-                text = response
-            )
+        if 'im' == channel_type: # If IM/DM don't thread response
+            response = SLACK_WEB_CLIENT_BOT.chat_postMessage(
+                    channel = channel_id,
+                    text = response
+                )
+        else:
+            response = SLACK_WEB_CLIENT_BOT.chat_postMessage(
+                    channel = channel_id,
+                    thread_ts=thread_ts,
+                    text = response
+                )
     except SlackApiError as e:
         # You will get a SlackApiError if "ok" is False
         print('error postBlockToSlackChannel:', e)
