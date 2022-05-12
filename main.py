@@ -34,10 +34,6 @@ def printTimeElapsed(starttime, label):
 START_TIME = printTimeElapsed(START_TIME, 'import time')
 GCP_PROJECT_ID = "sal9000-307923"
 
-# TODO:  Put SLACK_BOT_TOKEN and SLACK_USER_TOKEN in Google Secret Manager https://dev.to/googlecloud/using-secrets-in-google-cloud-functions-5aem
-# TODO: SecretManager actually takes over 3 seconds to load module and look up secret keys!!  Gonna hardcode Slack OAuth tokens for now, if they
-# get stolen I'll just reissue new ones
-#
 # Need to update Slack tokens as Slack expire them, either through console or gcloud:
 # gcloud secrets versions add SLACK_BOT_TOKEN --data-file=secret.txt  --project=sal9000-307923 
 
@@ -64,6 +60,14 @@ NUM_SEARCH_RESULTS = 6
 
 STOPWORDS_LIST=RAKE.SmartStopList()
 RAKE_OBJECT = RAKE.Rake(RAKE.SmartStopList())
+
+STATIC_CHANNEL_ID_NAME_MAP = {
+    'C5G8EUKTR': 'announcements',
+    'GUEPXFVDE': 'test',
+    'C5FN2Q6HE': 'techandtools',
+    'G01GHP5QS00': 'slackers-admin',
+    'CPYKX0GRG': 'architecture-and-budget-review'
+}
 
 COMMON_WORDS_3K = {''}
 """
@@ -154,6 +158,9 @@ def extractKeyPhrasesOpenAI(extractMe, keywordsCap):
     #Gonna strip all URLs from text for now
 #    extractMe  = removeURLsFromText(extractMe)
 #    print("stripped URLs", extractMe)
+
+#strip all \n,- first
+    extractMe = extractMe.strip('-').strip('\n').strip(',')
     response = openai.Completion.create(
         engine="text-davinci-001",
         prompt="Extract keywords from this text:\n\n" + extractMe, 
@@ -163,11 +170,24 @@ def extractKeyPhrasesOpenAI(extractMe, keywordsCap):
         frequency_penalty=0.8,
         presence_penalty=0
         )
-    extractedRawList =  response.choices[0].text.split(",")
+    print ("extractKeyPhrasesOpenAI raw response:")    
+    print (response)
+    responseRawText = response.choices[0].text    
+    delim =''
+    if responseRawText.find('\n') != -1:
+        delim = '\n'
+    if responseRawText.find(',') != -1:
+        delim = ','
+
+    extractedRawList =  responseRawText.split(delim)
+#    extractedRawList =  response.choices[0].text.split(",")
+    returnList = [s.strip('-') for s in extractedRawList]
 
     returnList = []
     for i in extractedRawList:
-        returnList.append(i.strip())
+        i = i.strip('-').strip('\n')
+        if len(i) > 0:
+            returnList.append(i[:40])
     returnList = returnList[:keywordsCap]
     return returnList
 
@@ -298,9 +318,6 @@ def handleEvent(request):
                     return json.dumps({'success':True}), 200, {'ContentType':'application/json'} 
 
                 elif 'thread_ts' not in event : #User top post in channel, SAL to respond in thread for first time
-                    print("main.handleEvent about to construct eventAttributes with event[]: ", event)
-                    print("main.handleEvent about to construct eventAttributes with event['channel']: ", event['channel'])
-
                     eventAttributes = {
                         'user': event['user'],
                         'channel_id': event['channel'],
@@ -386,6 +403,7 @@ def constructAndPostBlock(eventAttributes):
     block = constructBlock(eventAttributes)
     printTimeElapsed(startime, 'constructBlock')
     startime2 = datetime.utcnow() 
+    print("constructAndPostBlock: constructed block: ", block)
     response = postBlockToSlackChannel(eventAttributes, block)
     printTimeElapsed(startime2, 'postBlockToSlackChannel')
 #    printTimeElapsed(startime, 'constructAndPostBlock')
@@ -599,41 +617,45 @@ def removeURLsFromText(text):
 # Returns json of results as described: https://api.slack.com/methods/search.messages  
 def searchSlackMessages(text, channel_id, resultCount, page, order):
     print ('searchSlackMessages in channel_id: ', channel_id)
+    channel_name = STATIC_CHANNEL_ID_NAME_MAP.get(channel_id)
+    print ('searchSlackMessages in channel_name: ', channel_name)
 
 # TODO: search in current channel by getting channel name from https://api.slack.com/methods/conversations.list
-#    response = SLACK_WEB_CLIENT_USER.search_messages(query='in:#' + channel_name + ' "' + text + '"', sort='timestamp', sort_dir=order, count=resultCount, page=page)
-    response = SLACK_WEB_CLIENT_USER.search_messages(query='"' + text + '"', sort='timestamp', sort_dir=order, count=resultCount, page=page)
-# hard coded #techandtools channel name
+#   hard coded #techandtools channel name
+#    response = SLACK_WEB_CLIENT_USER.search_messages(query='in:#techandtools "' + text + '"', sort='timestamp', sort_dir=order, count=resultCount, page=page)
+    response = SLACK_WEB_CLIENT_USER.search_messages(query='in:#' + channel_name + ' "' + text + '"', sort='timestamp', sort_dir=order, count=resultCount, page=page)
 
 #    print ('search response: ', response)
     return response
 
 # Main for commandline run and quick tests
-# $env:GOOGLE_APPLICATION_CREDENTIALS="C:\code\SAL9000\SAL9000\sal9000-307923-a95b63614f84.json"
+# $env:GOOGLE_APPLICATION_CREDENTIALS="C:\code\SAL9000\sal9000-307923-dfcc8f474f83.json"
 if __name__ == "__main__":
     print("openapi.key: ", openai.api_key)
     START_TIME = printTimeElapsed(START_TIME, 'main start')
 
     TEST_STRINGS = [
+        "Any recommendations for an easy to use no code platform to do mobile app POCs?  A non-technical friend wants to do some prototyping.  I'm looking at bubble.io, flutterflow.io, appgyver.com and appypie.com.  Ideally, I'd like her to start with something that can later be easily ported to a more permanent architecture if her ideas become viable.",
+        "Morning Slackers - Anyone here using the enterprise version of https://readme.com/pricing . If so, how much are you paying? Any alternatives?",
         "Anyone used https://www.thoughtspot.com/ before or currently using it?"
-        "Okta not having a good morning:\nhttps://twitter.com/_MG_/status/1506109152665382920"
-        "Not sure where to post this: I'm looking for the recommendation of the dev shops that can absorb the product dev and support soup to nuts, preferably in LatAm, I've already reached out to EPAM, looking for more leads"
-        "This has been asked a few times on here already, but curious if anyone has developed any strong opinions since the last time it was asked. What has worked the best for your front end teams in E2E testing React Native apps? Appium? Detox?",
-        "I am looking for a good vendor who has integrations to all of the adtech systems out there to gather and normalize campaign performance data. Ideally, it would be a connector or api we can implement to aggregate campaign performance data.  Also, we have a data lake in S3 and Snowflake, if that helps. Please let me know if anyone knows of any good providers in this space.  Thx!!",    
-        "Can someone point me to feature flagging best practices? How do you name your feature flags? How do you ensure a configuration of flags is compatible?"
+#        "Okta not having a good morning:\nhttps://twitter.com/_MG_/status/1506109152665382920"
+#        "Not sure where to post this: I'm looking for the recommendation of the dev shops that can absorb the product dev and support soup to nuts, preferably in LatAm, I've already reached out to EPAM, looking for more leads"
+#        "This has been asked a few times on here already, but curious if anyone has developed any strong opinions since the last time it was asked. What has worked the best for your front end teams in E2E testing React Native apps? Appium? Detox?",
+#        "I am looking for a good vendor who has integrations to all of the adtech systems out there to gather and normalize campaign performance data. Ideally, it would be a connector or api we can implement to aggregate campaign performance data.  Also, we have a data lake in S3 and Snowflake, if that helps. Please let me know if anyone knows of any good providers in this space.  Thx!!",    
+#        "Can someone point me to feature flagging best practices? How do you name your feature flags? How do you ensure a configuration of flags is compatible?"
         ]
     TEST_USER = 'U5FGEALER' # Gene
-    TEST_TS = '1652119671.997739'
+    TEST_TS = '1652379419.972629'
     TEST_CHANNEL_ID = 'GUEPXFVDE' #test
     TEST_CHANNEL_NAME = 'test' #test
 
 
-#    for extractme in TEST_STRINGS:
-#        print('\nmain test Original text:', extractme)
+    for extractme in TEST_STRINGS:
+        print('\nmain test Original text:', extractme)
 #        raked  = extractKeyPhrasesRAKE(extractme, NUM_BUTTONS_FIRST_POST, COMMON_WORDS_3K)
 #        print('raked return top:', raked)
 
-#        print("OpenAI extracted phrases:", extractKeyPhrasesOpenAI(extractme, NUM_BUTTONS_FIRST_POST))
+        print("OpenAI extracted phrases:", extractKeyPhrasesOpenAI(extractme, NUM_BUTTONS_FIRST_POST))
 #        print("OpenAI tldr:", tldrOpenAI(extractme))
 #        print("OpenAI answer:", qAndAOpenAI(extractme))
 
@@ -642,7 +664,7 @@ if __name__ == "__main__":
     # Test Constructing and posting new block to Slack
 
 #    response = SLACK_WEB_CLIENT_USER.conversations_history(channel=TEST_CHANNEL_ID,latest=TEST_TS,limit=1,inclusive='true') 
-    thisMessage = 'Who is your daddy and what does he do?'
+    thisMessage = TEST_STRINGS[0]
 #    if response:
 #        print('retrived whole response: ', response)
 #        thisMessage =  response.get('messages')[0].get('text')
@@ -652,9 +674,11 @@ if __name__ == "__main__":
     eventAttributes = {
         'text': thisMessage, 
         'channel_id': TEST_CHANNEL_ID, 
+        'channel_type': "post", 
+        "thread_ts":    TEST_TS,
         'user': TEST_USER,
         }
-    sarcasticSAL(eventAttributes)
+#    sarcasticSAL(eventAttributes)
 
 #    constructAndPostBlock(eventAttributes)
 
