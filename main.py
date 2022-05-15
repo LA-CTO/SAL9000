@@ -502,10 +502,7 @@ def constructBlock(eventAttributes):
     extractedKeyPhrases = extractKeyPhrasesOpenAI(text, keyphrasesCap)
 
     sarcasticResponse = sarcasticSALResponse(text)
-    if(len(extractedKeyPhrases) < 0):
-        greetings = sarcasticResponse + "\nIf you don't like my brilliant answer, tough luck because none of your fellow Slackers know about this.\n"
-    else:
-        greetings = sarcasticResponse + "\nIf you don't like my brilliant answer, pick old answers from your fellow Slackers.\n"
+    greetings = sarcasticResponse + "\nOther CTO Slackers have this to say:\n"
 
     slack_block_kit = [
         {
