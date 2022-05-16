@@ -1,11 +1,14 @@
-python-rake
+flask
 slack_sdk
 google-cloud-secret-manager
 google-cloud-logging
-flask
+google-cloud-language
+openai
+
+#older NLP models (not used)
 #rake-nltk
 #pytextrank
 #spacy
-openai
 rake_nltk
+python-rake
 
