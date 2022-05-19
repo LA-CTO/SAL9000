@@ -66,7 +66,8 @@ STATIC_CHANNEL_ID_NAME_MAP = {
     'GUEPXFVDE': 'test',
     'C5FN2Q6HE': 'techandtools',
     'G01GHP5QS00': 'slackers-admin',
-    'CPYKX0GRG': 'architecture-and-budget-review'
+    'CPYKX0GRG': 'architecture-and-budget-review',
+    'CMB81FDDL': 'wolves-of-wall-street-3'
 }
 
 COMMON_WORDS_3K = {''}
@@ -617,10 +618,10 @@ def searchSlackMessages(text, channel_id, resultCount, page, order):
     channel_name = STATIC_CHANNEL_ID_NAME_MAP.get(channel_id)
     print ('searchSlackMessages in channel_name: ', channel_name)
 
-# TODO: search in current channel by getting channel name from https://api.slack.com/methods/conversations.list
-#   hard coded #techandtools channel name
-#    response = SLACK_WEB_CLIENT_USER.search_messages(query='in:#techandtools "' + text + '"', sort='timestamp', sort_dir=order, count=resultCount, page=page)
-    response = SLACK_WEB_CLIENT_USER.search_messages(query='in:#' + channel_name + ' "' + text + '"', sort='timestamp', sort_dir=order, count=resultCount, page=page)
+    if channel_name is None:
+        response = SLACK_WEB_CLIENT_USER.search_messages(query='"' + text + '"', sort='timestamp', sort_dir=order, count=resultCount, page=page)
+    else:
+        response = SLACK_WEB_CLIENT_USER.search_messages(query='in:#' + channel_name + ' "' + text + '"', sort='timestamp', sort_dir=order, count=resultCount, page=page)
 
 #    print ('search response: ', response)
     return response
