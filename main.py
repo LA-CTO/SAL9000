@@ -67,8 +67,9 @@ STATIC_CHANNEL_ID_NAME_MAP = {
     'C5FN2Q6HE': 'techandtools',
     'G01GHP5QS00': 'slackers-admin',
     'CPYKX0GRG': 'architecture-and-budget-review',
-    'CMB81FDDL': 'wolves-of-wall-street-3'
-}
+    'CMB81FDDL': 'wolves-of-wall-street-3',
+    'CFA23JTKL': 'random-bsod'
+    }
 
 COMMON_WORDS_3K = {''}
 """
@@ -161,7 +162,9 @@ def extractKeyPhrasesOpenAI(extractMe, keywordsCap):
 #    print("stripped URLs", extractMe)
 
 #strip all \n,- first
+    print("extractKeyPhrasesOpenAI about to strip:" + extractMe)
     extractMe = extractMe.strip('-').strip('\n').strip(',')
+    print("extractKeyPhrasesOpenAI stripped:" + extractMe)
     response = openai.Completion.create(
         engine="text-davinci-001",
         prompt="Extract keywords from this text:\n\n" + extractMe, 
@@ -181,14 +184,11 @@ def extractKeyPhrasesOpenAI(extractMe, keywordsCap):
         delim = ','
 
     extractedRawList =  responseRawText.split(delim)
-#    extractedRawList =  response.choices[0].text.split(",")
-    returnList = [s.strip('-') for s in extractedRawList]
 
     returnList = []
     for i in extractedRawList:
-        i = i.strip('-').strip('\n')
         if len(i) > 0:
-            returnList.append(i[:40])
+            returnList.append(i.strip('-').strip(' ').strip('\n')[:40])
     returnList = returnList[:keywordsCap]
     return returnList
 
@@ -353,14 +353,13 @@ def handleEvent(request):
                 print("This GET request fell through all filters, event: ", event)
         else:
             print("This message has no event element?? Doing nothing...")
-#    elif request.method == 'POST': # POST - either /log command or user push search button event
-    else: # POST - either /log command or user push search button event
+    elif request.form is not None: # POST - either /log command or user push search button event
         postForm = request.form
         print("handleEvent POST form:", postForm)
         if 'command' in postForm and postForm.get('command') == '/log':
             return handleSlashCommand(request)
 
-        payload = json.loads(postForm.get('payload'))
+        payload = json.loads(str(postForm.get('payload')))
         print('main.handleEven POST Interactive Event with payload: ', payload)
         payload_type = payload["type"]
         if "block_actions" == payload_type: #User pushed a search button
@@ -619,9 +618,9 @@ def searchSlackMessages(text, channel_id, resultCount, page, order):
     print ('searchSlackMessages in channel_name: ', channel_name)
 
     if channel_name is None:
-        response = SLACK_WEB_CLIENT_USER.search_messages(query='"' + text + '"', sort='timestamp', sort_dir=order, count=resultCount, page=page)
+        response = SLACK_WEB_CLIENT_USER.search_messages(query='"' + str(text) + '"', sort='timestamp', sort_dir=order, count=resultCount, page=page)
     else:
-        response = SLACK_WEB_CLIENT_USER.search_messages(query='in:#' + channel_name + ' "' + text + '"', sort='timestamp', sort_dir=order, count=resultCount, page=page)
+        response = SLACK_WEB_CLIENT_USER.search_messages(query='in:#' + str(channel_name) + ' "' + text + '"', sort='timestamp', sort_dir=order, count=resultCount, page=page)
 
 #    print ('search response: ', response)
     return response
@@ -633,9 +632,10 @@ if __name__ == "__main__":
     START_TIME = printTimeElapsed(START_TIME, 'main start')
 
     TEST_STRINGS = [
-        "Any recommendations for an easy to use no code platform to do mobile app POCs?  A non-technical friend wants to do some prototyping.  I'm looking at bubble.io, flutterflow.io, appgyver.com and appypie.com.  Ideally, I'd like her to start with something that can later be easily ported to a more permanent architecture if her ideas become viable.",
-        "Morning Slackers - Anyone here using the enterprise version of https://readme.com/pricing . If so, how much are you paying? Any alternatives?",
-        "Anyone used https://www.thoughtspot.com/ before or currently using it?"
+        "Hi all - thank you @Lee Ditiangkin for the invite! I'm co-founder / GP of a new B2B-centric pre-seed and seed-stage fund called Garuda Ventures (garuda.vc). Previously was an early employee at Okta, where I was an early/founding member of all of our inorganic growth functions (M&A, BD, Ventures) -- and before that did a few other things back East in NYC/DC (law/finance/etc). Am based in the Bay Area, but we invest everywhere.\nExcited to meet and learn from technical leaders, operators, and entrepreneurs (and hopefully re-connect with some familiar faces :slightly_smiling_face:). Our portfolio companies are also always hiring. Feel free to reach out! Always up for a chat.",
+#        "Any recommendations for an easy to use no code platform to do mobile app POCs?  A non-technical friend wants to do some prototyping.  I'm looking at bubble.io, flutterflow.io, appgyver.com and appypie.com.  Ideally, I'd like her to start with something that can later be easily ported to a more permanent architecture if her ideas become viable.",
+#        "Morning Slackers - Anyone here using the enterprise version of https://readme.com/pricing . If so, how much are you paying? Any alternatives?",
+#        "Anyone used https://www.thoughtspot.com/ before or currently using it?"
 #        "Okta not having a good morning:\nhttps://twitter.com/_MG_/status/1506109152665382920"
 #        "Not sure where to post this: I'm looking for the recommendation of the dev shops that can absorb the product dev and support soup to nuts, preferably in LatAm, I've already reached out to EPAM, looking for more leads"
 #        "This has been asked a few times on here already, but curious if anyone has developed any strong opinions since the last time it was asked. What has worked the best for your front end teams in E2E testing React Native apps? Appium? Detox?",
