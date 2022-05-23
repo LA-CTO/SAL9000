@@ -61,18 +61,11 @@ NUM_SEARCH_RESULTS = 6
 STOPWORDS_LIST=RAKE.SmartStopList()
 RAKE_OBJECT = RAKE.Rake(RAKE.SmartStopList())
 
-STATIC_CHANNEL_ID_NAME_MAP = {
-    'C5G8EUKTR': 'announcements',
-    'GUEPXFVDE': 'test',
-    'C5FN2Q6HE': 'techandtools',
-    'G01GHP5QS00': 'slackers-admin',
-    'CPYKX0GRG': 'architecture-and-budget-review',
-    'CMB81FDDL': 'wolves-of-wall-street-3',
-    'CFA23JTKL': 'random-bsod'
-    }
+STATIC_CHANNEL_ID_NAME_MAP = {}
 
-COMMON_WORDS_3K = {''}
 """
+COMMON_WORDS_3K = {''}
+
 COMMON_WORDS_3K_FILE = open('3kcommonwords.txt')
 with COMMON_WORDS_3K_FILE as reader:
     for this_word in reader:
@@ -87,6 +80,16 @@ SAL_IMAGE = 'https://bit.ly/39eK1bY'
 SAL_THIN_IMAGE = 'https://files.slack.com/files-pri/T5FGEAL8M-F01SXUR4CJD/sal_thin.jpg?pub_secret=97e5e68214'
 
 START_TIME = printTimeElapsed(START_TIME, 'all initialization time')
+
+def fetchChannelsMap():
+    if len(STATIC_CHANNEL_ID_NAME_MAP) == 0:
+        result = SLACK_WEB_CLIENT_USER.conversations_list(types="public_channel, private_channel")
+        print("fetched channels: ", result)
+        channels = result['channels']
+        for channel in channels:
+            print("this channel: ", channel['name'])
+            STATIC_CHANNEL_ID_NAME_MAP.update({channel["id"]: channel["name"]})
+    return STATIC_CHANNEL_ID_NAME_MAP
 
 # Handle SAL9001 slash commands
 # Slack handleEvent webhook: https://us-west2-sal9000-307923.cloudfunctions.net/handleSlashCommand
@@ -614,7 +617,7 @@ def removeURLsFromText(text):
 # Returns json of results as described: https://api.slack.com/methods/search.messages  
 def searchSlackMessages(text, channel_id, resultCount, page, order):
     print ('searchSlackMessages in channel_id: ', channel_id)
-    channel_name = STATIC_CHANNEL_ID_NAME_MAP.get(channel_id)
+    channel_name = fetchChannelsMap().get(channel_id)
     print ('searchSlackMessages in channel_name: ', channel_name)
 
     if channel_name is None:
@@ -679,6 +682,9 @@ if __name__ == "__main__":
 #    sarcasticSAL(eventAttributes)
 
 #    constructAndPostBlock(eventAttributes)
+
+    channelsMap = fetchChannelsMap()
+    print('channelsMap: ', channelsMap)
 
     START_TIME = printTimeElapsed(VERY_BEGINNING_TIME, 'total')
 
