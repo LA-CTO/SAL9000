@@ -305,8 +305,9 @@ def handleEvent(request):
         if event:
             if 'bot_id' in event:
                 print('This is a bot message so not responding to it')
-            elif event.get("subtype"):
-                print('This is subtype so not responding to it: ', event.get("subtype"))
+# 5/25/2022 removing Subtype fall through because it excludes posts with attachments which is a subtype='file_share' - I don't remember why I'm excluding subtype in the first place so keep it commented out
+#            elif event.get("subtype"):
+#                print('This is subtype so not responding to it: ', event.get("subtype"))
             elif 'text' in event and not event.get('text').startswith("/"): #User top post, SAL to respond for first time OR DM directly with SAL9001, activate Sarcastic SAL Chatbot
                 print("main.handleEvent GET text: ", event['text'])
                 channel_type = event['channel_type']
