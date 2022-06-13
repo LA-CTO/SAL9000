@@ -63,7 +63,7 @@ RAKE_OBJECT = RAKE.Rake(RAKE.SmartStopList())
 
 STATIC_CHANNEL_ID_NAME_MAP = {}
 #  Doing @user will cause SAL to push notify the user, so only do it for  certain channels:
-STATIC_USER_MENTION_CHANNEL_LIST = {'techtools', 'events', 'architecture-and-budget-review', 'startups', 'venture-capital',  'slacker-agels', 'test'}
+STATIC_USER_MENTION_CHANNEL_LIST = ['techtools', 'events', 'architecture-and-budget-review', 'startups', 'venture-capital',  'slacker-agels', 'test']
 
 
 """
