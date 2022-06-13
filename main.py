@@ -20,7 +20,7 @@ from slack_sdk.errors import SlackApiError
 import threading
 import re
 import gcloud_logging
-from flask import jsonify
+from fastapi.encoders import jsonable_encoder
 
 #openai
 import os
@@ -62,6 +62,9 @@ STOPWORDS_LIST=RAKE.SmartStopList()
 RAKE_OBJECT = RAKE.Rake(RAKE.SmartStopList())
 
 STATIC_CHANNEL_ID_NAME_MAP = {}
+#  Doing @user will cause SAL to push notify the user, so only do it for  certain channels:
+STATIC_USER_MENTION_CHANNEL_LIST = {'techtools', 'events', 'architecture-and-budget-review', 'startups', 'venture-capital',  'slacker-agels', 'test'}
+
 
 """
 COMMON_WORDS_3K = {''}
@@ -127,7 +130,8 @@ def handleSlashCommand(request):
             timestamp = entry.timestamp.isoformat()[:-10]
             rtnText += "`* {}: {}`\n".format(timestamp, entry.payload)
 #        print('/log rtnText', rtnText)
-        return jsonify(response_type='in_channel',text=rtnText)
+#        return jsonify(response_type='in_channel',text=rtnText)
+        return jsonable_encoder(rtnText)
 
 def RAKEPhraseExtraction(extractString):
     extractString = removeURLsFromText(extractString)
@@ -579,9 +583,12 @@ def constructBlock(eventAttributes):
                 continue
             if thread_ts == this_ts: #skip this parent post
                 continue
-#            Doing @user will cause SAL to push notify the user.
-            searchResultsString += "<" + thisSearchResult['permalink'] + "|" + thisDate + " " + searchme + "> " + " from <@"+ thisUserName+ ">\n"
-#            searchResultsString += "<" + thisSearchResult['permalink'] + "|" + thisDate + " " + searchme + "> " + " from " + thisUserName+ "\n"
+#            Doing @user will cause SAL to push notify the user, so only do it for  certain channels:
+            channel_name = fetchChannelsMap().get(channel_id)
+            if channel_name in STATIC_USER_MENTION_CHANNEL_LIST:
+                searchResultsString += "<" + thisSearchResult['permalink'] + "|" + thisDate + " " + searchme + "> " + " from <@"+ thisUserName+ ">\n"
+            else:
+                searchResultsString += "<" + thisSearchResult['permalink'] + "|" + thisDate + " " + searchme + "> " + " from " + thisUserName+ "\n"
             count += 1
 
     if len(searchResultsString) == 0:

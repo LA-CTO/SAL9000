@@ -1,4 +1,4 @@
-flask
+fastapi
 slack_sdk
 google-cloud-secret-manager
 google-cloud-logging
@@ -11,4 +11,4 @@ openai
 #spacy
 rake_nltk
 python-rake
-
+#flask
