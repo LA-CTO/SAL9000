@@ -170,7 +170,9 @@ def extractKeyPhrasesOpenAI(extractMe, keywordsCap):
 
 #strip all \n,- first
     print("extractKeyPhrasesOpenAI about to strip:" + extractMe)
-    extractMe = extractMe.strip('-').strip('\n').strip(',')
+    extractMe = extractMe.replace("-", " ")
+    extractMe = extractMe.replace("\n", " ")
+    extractMe = extractMe.replace(",", " ")
     print("extractKeyPhrasesOpenAI stripped:" + extractMe)
     response = openai.Completion.create(
         engine="text-davinci-001",
@@ -195,7 +197,7 @@ def extractKeyPhrasesOpenAI(extractMe, keywordsCap):
     returnList = []
     for i in extractedRawList:
         if len(i) > 0:
-            returnList.append(i.strip('-').strip(' ').strip('\n')[:40])
+            returnList.append(i.strip("-").strip(" ").strip("\n")[:40])
     returnList = returnList[:keywordsCap]
     return returnList
 
@@ -639,11 +641,12 @@ def searchSlackMessages(text, channel_id, resultCount, page, order):
 # Main for commandline run and quick tests
 # $env:GOOGLE_APPLICATION_CREDENTIALS="C:\code\SAL9000\sal9000-307923-dfcc8f474f83.json"
 if __name__ == "__main__":
-    print("openapi.key: ", openai.api_key)
+#    print("openapi.key: ", openai.api_key)
     START_TIME = printTimeElapsed(START_TIME, 'main start')
 
     TEST_STRINGS = [
-        "Hi all - thank you @Lee Ditiangkin for the invite! I'm co-founder / GP of a new B2B-centric pre-seed and seed-stage fund called Garuda Ventures (garuda.vc). Previously was an early employee at Okta, where I was an early/founding member of all of our inorganic growth functions (M&A, BD, Ventures) -- and before that did a few other things back East in NYC/DC (law/finance/etc). Am based in the Bay Area, but we invest everywhere.\nExcited to meet and learn from technical leaders, operators, and entrepreneurs (and hopefully re-connect with some familiar faces :slightly_smiling_face:). Our portfolio companies are also always hiring. Feel free to reach out! Always up for a chat.",
+        "Bill Gates says crypto and NFTs are a sham.\n\nWell Windows and Office are a sham.  So it takes one to know one! https://www.cnn.com/2022/06/15/tech/bill-gates-crypto-nfts-comments/index.html"
+#        "Hi all - thank you @Lee Ditiangkin for the invite! I'm co-founder / GP of a new B2B-centric pre-seed and seed-stage fund called Garuda Ventures (garuda.vc). Previously was an early employee at Okta, where I was an early/founding member of all of our inorganic growth functions (M&A, BD, Ventures) -- and before that did a few other things back East in NYC/DC (law/finance/etc). Am based in the Bay Area, but we invest everywhere.\nExcited to meet and learn from technical leaders, operators, and entrepreneurs (and hopefully re-connect with some familiar faces :slightly_smiling_face:). Our portfolio companies are also always hiring. Feel free to reach out! Always up for a chat.",
 #        "Any recommendations for an easy to use no code platform to do mobile app POCs?  A non-technical friend wants to do some prototyping.  I'm looking at bubble.io, flutterflow.io, appgyver.com and appypie.com.  Ideally, I'd like her to start with something that can later be easily ported to a more permanent architecture if her ideas become viable.",
 #        "Morning Slackers - Anyone here using the enterprise version of https://readme.com/pricing . If so, how much are you paying? Any alternatives?",
 #        "Anyone used https://www.thoughtspot.com/ before or currently using it?"
@@ -691,8 +694,8 @@ if __name__ == "__main__":
 
 #    constructAndPostBlock(eventAttributes)
 
-    channelsMap = fetchChannelsMap()
-    print('channelsMap: ', channelsMap)
+#    channelsMap = fetchChannelsMap()
+#    print('channelsMap: ', channelsMap)
 
     START_TIME = printTimeElapsed(VERY_BEGINNING_TIME, 'total')
 
