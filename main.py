@@ -636,9 +636,9 @@ def searchSlackMessages(text, channel_id, resultCount, page, order):
     print ('searchSlackMessages in channel_name: ', channel_name)
 
     if channel_name is None:
-        response = SLACK_WEB_CLIENT_USER.search_messages(query='"' + str(text) + '"', sort='timestamp', sort_dir=order, count=resultCount, page=page)
+        response = SLACK_WEB_CLIENT_USER.search_messages(query='"' + str(text) + '"', sort='score', sort_dir=order, count=resultCount, page=page)
     else:
-        response = SLACK_WEB_CLIENT_USER.search_messages(query='in:#' + str(channel_name) + ' "' + text + '"', sort='timestamp', sort_dir=order, count=resultCount, page=page)
+        response = SLACK_WEB_CLIENT_USER.search_messages(query='in:#' + str(channel_name) + ' "' + text + '"', sort='score', sort_dir=order, count=resultCount, page=page)
 
 #    print ('search response: ', response)
     return response
