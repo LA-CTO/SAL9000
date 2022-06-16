@@ -33,8 +33,8 @@ jobs:
         # optional configs, see google-cloud-actions/deploy-cloud-functions for full reference
         # list of key-value pairs to set as environment variables in the form KEY1=VALUE1,KEY2=VALUE2.
         
-        trigger-http: 1
-        allow-unauthenticated: 1
+        event_trigger_type: http
+#        allow-unauthenticated: 1
 
 #       env_vars: # optional
 #       env_vars: # optional
