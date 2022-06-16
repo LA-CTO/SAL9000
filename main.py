@@ -380,7 +380,7 @@ def handleEvent(request):
         if "block_actions" == payload_type: #User pushed a search button
             text = payload['message']['text']
             print("main.handleEvent POST bock_action text: ", text)
-            order = 'asc'
+            order = 'desc'
             parseSearchAndOrder = payload["actions"][0]['value'].split('|')
             print("main.handleEvent POST bock_action button action: ", parseSearchAndOrder)
             searchme = parseSearchAndOrder[0]
@@ -506,7 +506,7 @@ def constructBlock(eventAttributes):
     channel_id = eventAttributes['channel_id']
     keyphrasesCap = eventAttributes['keyphrasesCap']
     searchme = ''
-    order = 'asc'
+    order = 'desc'
     if 'searchme' in eventAttributes:
         searchme = eventAttributes['searchme']
     if 'order' in eventAttributes:
