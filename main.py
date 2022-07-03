@@ -47,6 +47,10 @@ SLACK_BOT_TOKEN = getGCPSecretKey('SLACK_BOT_TOKEN')
 SLACK_USER_TOKEN = getGCPSecretKey('SLACK_USER_TOKEN')
 
 openai.api_key = getGCPSecretKey('OPENAI_API_KEY')
+# https://beta.openai.com/docs/models/gpt-3
+# https://openai.com/api/pricing/
+# OPENAI_ENGINE = "text-davinci-002"
+OPENAI_ENGINE = "text-curie-001"
 
 SLACK_WEB_CLIENT_BOT = WebClient(token=SLACK_BOT_TOKEN) 
 SLACK_WEB_CLIENT_USER = WebClient(token=SLACK_USER_TOKEN) 
@@ -180,7 +184,7 @@ def extractKeyPhrasesOpenAI(extractMe, keywordsCap):
     extractMe = extractMe.replace(")", "")
     print("extractKeyPhrasesOpenAI stripped:" + extractMe)
     response = openai.Completion.create(
-        engine="text-davinci-001",
+        engine=OPENAI_ENGINE,
         prompt="Extract keywords from this text:\n\n" + extractMe, 
         temperature=0.3,
         max_tokens=60,
@@ -210,7 +214,7 @@ def extractKeyPhrasesOpenAI(extractMe, keywordsCap):
 
 def qAndAOpenAI(answerMe):
     response = openai.Completion.create(
-        engine="text-davinci-001",
+        engine=OPENAI_ENGINE,
         prompt="I am a highly intelligent question answering bot. If you ask me a question that is rooted in truth, I will give you the answer. If you ask me a question that is nonsense, trickery, or has no clear answer, I will respond with \"Unknown\".\n\nQ: " + answerMe,
         temperature=0,
         max_tokens=100,
@@ -225,7 +229,7 @@ def qAndAOpenAI(answerMe):
 
 def tldrOpenAI(summarizeMe):
     response = openai.Completion.create(
-        engine="text-davinci-002",
+        engine=OPENAI_ENGINE,
         prompt=summarizeMe +"\n\nTl;dr",
         temperature=0.7,
         max_tokens=60,
@@ -461,7 +465,7 @@ sarcasticSAL takes eventAttributes with channel_id and text and calls OpenAI Mar
 """
 def sarcasticSALResponse(text):
     response = openai.Completion.create(
-        engine="text-davinci-002",
+        engine=OPENAI_ENGINE,
         prompt="Marv is a chatbot that reluctantly answers questions with sarcastic responses:\n\nYou: " + text + "\n",
         temperature=0.5,
         max_tokens=60,
@@ -585,6 +589,8 @@ def constructBlock(eventAttributes):
             thisUserName = thisSearchResult['username']
             this_ts = thisSearchResult['ts']
             thisDate = datetime.fromtimestamp(int(this_ts.split(".")[0])).strftime('%m-%d-%y')
+            thisText = thisSearchResult['text']
+#            thisTLDR = tldrOpenAI(thisText)
 
             if SAL_USER == thisUser: #skip posts by SAL
                 continue
@@ -593,9 +599,9 @@ def constructBlock(eventAttributes):
 #            Doing @user will cause SAL to push notify the user, so only do it for  certain channels:
             channel_name = fetchChannelsMap().get(channel_id)
             if channel_name in STATIC_USER_MENTION_CHANNEL_LIST:
-                searchResultsString += "<" + thisSearchResult['permalink'] + "|" + thisDate + " " + searchme + "> " + " from <@"+ thisUserName+ ">\n"
-            else:
-                searchResultsString += "<" + thisSearchResult['permalink'] + "|" + thisDate + " " + searchme + "> " + " from " + thisUserName+ "\n"
+                thisUserName = "<@" + thisUserName + ">"
+            searchResultsString += "<" + thisSearchResult['permalink'] + "|" + thisDate + "> " + " from " + thisUserName+ "\n"
+ #           searchResultsString += "<" + thisSearchResult['permalink'] + "|" + thisDate + "> " + " from " + thisUserName+ ": " + thisTLDR + "\n"
             count += 1
 
     if len(searchResultsString) == 0:
@@ -650,7 +656,8 @@ if __name__ == "__main__":
     START_TIME = printTimeElapsed(START_TIME, 'main start')
 
     TEST_STRINGS = [
-        "Webinar: How to reason about indexing your Postgres database by <https://www.linkedin.com/in/lfittl/|Lukas Fittl> founder of <http://pganalyze.com|pganalyze.com> (he was founding engineer of Citus which I've used in previous project for managed sharded Postgres)  <https://us02web.zoom.us/webinar/register/9816552361071/WN_cjrUDKVuSqO8GckfiCWkbA>"
+        "Chewy rocks! I like this quote: When you’re nice, people smile. When you’re really nice, people talk. And when you’re exceptionally and consistently nice, you go viral. https://jasonfeifer.bulletin.com/this-company-s-customer-service-is-so-insanely-good-it-went-viral"
+#        "Webinar: How to reason about indexing your Postgres database by <https://www.linkedin.com/in/lfittl/|Lukas Fittl> founder of <http://pganalyze.com|pganalyze.com> (he was founding engineer of Citus which I've used in previous project for managed sharded Postgres)  <https://us02web.zoom.us/webinar/register/9816552361071/WN_cjrUDKVuSqO8GckfiCWkbA>"
 #        "Bill Gates says crypto and NFTs are a sham.\n\nWell Windows and Office are a sham.  So it takes one to know one! https://www.cnn.com/2022/06/15/tech/bill-gates-crypto-nfts-comments/index.html"
 #        "Hi all - thank you @Lee Ditiangkin for the invite! I'm co-founder / GP of a new B2B-centric pre-seed and seed-stage fund called Garuda Ventures (garuda.vc). Previously was an early employee at Okta, where I was an early/founding member of all of our inorganic growth functions (M&A, BD, Ventures) -- and before that did a few other things back East in NYC/DC (law/finance/etc). Am based in the Bay Area, but we invest everywhere.\nExcited to meet and learn from technical leaders, operators, and entrepreneurs (and hopefully re-connect with some familiar faces :slightly_smiling_face:). Our portfolio companies are also always hiring. Feel free to reach out! Always up for a chat.",
 #        "Any recommendations for an easy to use no code platform to do mobile app POCs?  A non-technical friend wants to do some prototyping.  I'm looking at bubble.io, flutterflow.io, appgyver.com and appypie.com.  Ideally, I'd like her to start with something that can later be easily ported to a more permanent architecture if her ideas become viable.",
@@ -674,9 +681,9 @@ if __name__ == "__main__":
 #        print('raked return top:', raked)
 
         print("OpenAI extracted phrases:", extractKeyPhrasesOpenAI(extractme, NUM_BUTTONS_FIRST_POST))
-#        print("OpenAI tldr:", tldrOpenAI(extractme))
-#        print("OpenAI answer:", qAndAOpenAI(extractme))
-
+        print("OpenAI tldr:", tldrOpenAI(extractme))
+        print("OpenAI answer:", qAndAOpenAI(extractme))
+        print("OpenAI sarcastic:", sarcasticSALResponse(extractme))
 #    postMessageToSlackChannel('test', '', 'Hello from SAL 9001! :tada:')        
 
     # Test Constructing and posting new block to Slack
