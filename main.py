@@ -378,6 +378,10 @@ def handleEvent(request):
         if 'command' in postForm and postForm.get('command') == '/log':
             return handleSlashCommand(request)
 
+        if postForm.get('payload') is None:
+            print("handleEvent POST form payload is null, returning!")
+            return json.dumps({'success':True}), 200, {'ContentType':'application/json'} 
+
         payload = json.loads(str(postForm.get('payload')))
         print('main.handleEven POST Interactive Event with payload: ', payload)
         payload_type = payload["type"]
