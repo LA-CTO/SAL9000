@@ -327,7 +327,7 @@ def handleEvent(request):
             elif 'text' in event and not event.get('text').startswith("/"): #User top post, SAL to respond for first time OR DM directly with SAL9001, activate Sarcastic SAL Chatbot
                 print("main.handleEvent GET text: ", event['text'])
                 channel_type = event['channel_type']
-                if 'im' == channel_type or ('thread_ts' in event and SAL_USER in event.get('text')): # DM with @SAL9001 or user evoked SAL in thread - activate Sarcastic SAL Chatbot
+                if 'im' == channel_type or ('thread_ts' in event and SAL_USER in event.get('text')) or SALLE_CHANNEL == event['channel']: # DM with @SAL9001 or user evoked SAL in thread - activate Sarcastic/Dall-E SAL Chatbot
                     eventAttributes = {
                         'user': event['user'],
                         'channel_id': event['channel'],
@@ -493,6 +493,8 @@ def sarcasticSALResponse(text):
     responseTxt = response.choices[0].text[6:] #skip the first 6 chars which is "Marv: "
     print('sarcastic sal response:', responseTxt)
     return responseTxt
+
+SALLE_CHANNEL = 'C049KEY2BCK'
 
 def SALResponse(eventAttributes):
     channel_id = eventAttributes['channel_id']
@@ -718,7 +720,7 @@ if __name__ == "__main__":
 #        print("OpenAI extracted phrases:", extractKeyPhrasesOpenAI(extractme, NUM_BUTTONS_FIRST_POST))
 #        print("OpenAI tldr:", tldrOpenAI(extractme))
 #        print("OpenAI answer:", qAndAOpenAI(extractme))
-#        print("OpenAI sarcastic:", sarcasticSALResponse(extractme))
+#        print("OpenAI sarcastic:", SALResponse(extractme))
 #    postMessageToSlackChannel('test', '', 'Hello from SAL 9001! :tada:')        
 
     # Test Constructing and posting new block to Slack
