@@ -210,6 +210,7 @@ def extractKeyPhrasesOpenAI(extractMe, keywordsCap):
     returnList = returnList[:keywordsCap]
     return returnList
 
+
 # Return Q&A with OpenAI
 
 def qAndAOpenAI(answerMe):
@@ -334,7 +335,7 @@ def handleEvent(request):
                         'channel_type': channel_type,
                         'text': event['text']
                     }
-                    sarcasticSAL(eventAttributes)
+                    SALResponse(eventAttributes)
                     return json.dumps({'success':True}), 200, {'ContentType':'application/json'} 
 
                 elif 'thread_ts' not in event : #User top post in channel, SAL to respond in thread for first time
@@ -464,6 +465,18 @@ def postBlockToSlackChannel(eventAttributes, block):
         assert e.response["error"]    # str like 'invalid_auth', 'channel_not_found'
     return response    
 
+# DALL-E image complete with OpenAI
+# https://beta.openai.com/docs/guides/images/introduction
+def dalleOpenAI(drawMe):
+    response = openai.Image.create(
+    prompt=drawMe,
+    n=1,
+    size="1024x1024"
+    )
+    image_url = response['data'][0]['url']
+    return image_url
+    
+
 """
 sarcasticSAL takes eventAttributes with channel_id and text and calls OpenAI Marv to get a sarcastic response and posts in channel
 """
@@ -481,12 +494,17 @@ def sarcasticSALResponse(text):
     print('sarcastic sal response:', responseTxt)
     return responseTxt
 
-def sarcasticSAL(eventAttributes):
+def SALResponse(eventAttributes):
     channel_id = eventAttributes['channel_id']
     thread_ts = eventAttributes['thread_ts']
     text = eventAttributes['text']
     channel_type = eventAttributes['channel_type']
-    response = sarcasticSALResponse(text)
+
+    # if text contains 'draw this', activate Dall-e, otherwise SarcasticSAL                    
+    if "draw this" in text.lower():
+        response = dalleOpenAI(text)
+    else:
+        response = sarcasticSALResponse(text)
 
     try:
         if 'im' == channel_type: # If IM/DM don't thread response
@@ -678,16 +696,20 @@ if __name__ == "__main__":
     TEST_CHANNEL_ID = 'GUEPXFVDE' #test
     TEST_CHANNEL_NAME = 'test' #test
 
+# Test Dall-e draw
+    dalleURL = dalleOpenAI("draw me Female Asian Terminator")
+    print('Dall-E: ', dalleURL)
 
-    for extractme in TEST_STRINGS:
-        print('\nmain test Original text:', extractme)
+
+#    for extractme in TEST_STRINGS:
+#        print('\nmain test Original text:', extractme)
 #        raked  = extractKeyPhrasesRAKE(extractme, NUM_BUTTONS_FIRST_POST, COMMON_WORDS_3K)
 #        print('raked return top:', raked)
 
-        print("OpenAI extracted phrases:", extractKeyPhrasesOpenAI(extractme, NUM_BUTTONS_FIRST_POST))
-        print("OpenAI tldr:", tldrOpenAI(extractme))
-        print("OpenAI answer:", qAndAOpenAI(extractme))
-        print("OpenAI sarcastic:", sarcasticSALResponse(extractme))
+#        print("OpenAI extracted phrases:", extractKeyPhrasesOpenAI(extractme, NUM_BUTTONS_FIRST_POST))
+#        print("OpenAI tldr:", tldrOpenAI(extractme))
+#        print("OpenAI answer:", qAndAOpenAI(extractme))
+#        print("OpenAI sarcastic:", sarcasticSALResponse(extractme))
 #    postMessageToSlackChannel('test', '', 'Hello from SAL 9001! :tada:')        
 
     # Test Constructing and posting new block to Slack
@@ -707,7 +729,8 @@ if __name__ == "__main__":
         "thread_ts":    TEST_TS,
         'user': TEST_USER,
         }
-#    sarcasticSAL(eventAttributes)
+
+#    SALResponse(eventAttributes)
 
 #    constructAndPostBlock(eventAttributes)
 
