@@ -500,8 +500,12 @@ def SALResponse(eventAttributes):
     text = eventAttributes['text']
     channel_type = eventAttributes['channel_type']
 
-    # if text contains 'draw this', activate Dall-e, otherwise SarcasticSAL                    
-    if "draw this" in text.lower():
+    # if text contains 'draw me', activate Dall-e, otherwise SarcasticSAL                    
+    print('text.lower():', text.lower())
+    if "draw me" in text.lower():
+        startIndex = text.lower().index("draw me") + len("draw me")
+        text = text[startIndex:] 
+        print('bout to draw text: ', text)
         response = dalleOpenAI(text)
     else:
         response = sarcasticSALResponse(text)
@@ -678,7 +682,8 @@ if __name__ == "__main__":
     START_TIME = printTimeElapsed(START_TIME, 'main start')
 
     TEST_STRINGS = [
-        "Chewy rocks! I like this quote: When you’re nice, people smile. When you’re really nice, people talk. And when you’re exceptionally and consistently nice, you go viral. https://jasonfeifer.bulletin.com/this-company-s-customer-service-is-so-insanely-good-it-went-viral"
+         "draw me Female Asian Terminator realistic"
+#        "Chewy rocks! I like this quote: When you’re nice, people smile. When you’re really nice, people talk. And when you’re exceptionally and consistently nice, you go viral. https://jasonfeifer.bulletin.com/this-company-s-customer-service-is-so-insanely-good-it-went-viral"
 #        "Webinar: How to reason about indexing your Postgres database by <https://www.linkedin.com/in/lfittl/|Lukas Fittl> founder of <http://pganalyze.com|pganalyze.com> (he was founding engineer of Citus which I've used in previous project for managed sharded Postgres)  <https://us02web.zoom.us/webinar/register/9816552361071/WN_cjrUDKVuSqO8GckfiCWkbA>"
 #        "Bill Gates says crypto and NFTs are a sham.\n\nWell Windows and Office are a sham.  So it takes one to know one! https://www.cnn.com/2022/06/15/tech/bill-gates-crypto-nfts-comments/index.html"
 #        "Hi all - thank you @Lee Ditiangkin for the invite! I'm co-founder / GP of a new B2B-centric pre-seed and seed-stage fund called Garuda Ventures (garuda.vc). Previously was an early employee at Okta, where I was an early/founding member of all of our inorganic growth functions (M&A, BD, Ventures) -- and before that did a few other things back East in NYC/DC (law/finance/etc). Am based in the Bay Area, but we invest everywhere.\nExcited to meet and learn from technical leaders, operators, and entrepreneurs (and hopefully re-connect with some familiar faces :slightly_smiling_face:). Our portfolio companies are also always hiring. Feel free to reach out! Always up for a chat.",
@@ -692,13 +697,13 @@ if __name__ == "__main__":
 #        "Can someone point me to feature flagging best practices? How do you name your feature flags? How do you ensure a configuration of flags is compatible?"
         ]
     TEST_USER = 'U5FGEALER' # Gene
-    TEST_TS = '1652379419.972629'
+    TEST_TS = '1667580780.319159'
     TEST_CHANNEL_ID = 'GUEPXFVDE' #test
     TEST_CHANNEL_NAME = 'test' #test
 
 # Test Dall-e draw
-    dalleURL = dalleOpenAI("draw me Female Asian Terminator")
-    print('Dall-E: ', dalleURL)
+#    dalleURL = dalleOpenAI("drawme Female Asian Terminator")
+#    print('Dall-E: ', dalleURL)
 
 
 #    for extractme in TEST_STRINGS:
@@ -730,7 +735,7 @@ if __name__ == "__main__":
         'user': TEST_USER,
         }
 
-#    SALResponse(eventAttributes)
+    SALResponse(eventAttributes)
 
 #    constructAndPostBlock(eventAttributes)
 
