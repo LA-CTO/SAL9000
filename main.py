@@ -26,6 +26,10 @@ from fastapi.encoders import jsonable_encoder
 import os
 import openai
 
+#urllib.request for getting openai generated png over http and upload into Slack
+import urllib.request
+
+
 def printTimeElapsed(starttime, label):
     endtime = datetime.utcnow()
     print(str(endtime-starttime)[:-4] + " " + label)
@@ -510,17 +514,35 @@ def SALResponse(eventAttributes):
         startIndex = text.lower().index("draw me") + len("draw me")
         text = text[startIndex:] 
         print('bout to draw text: ', text)
-        response = dalleOpenAI(text)
+        dalleurl = dalleOpenAI(text)
+        response = "I drew" + text + " <" + dalleurl +"|here>"
     else:
         response = sarcasticSALResponse(text)
 
     try:
-        if 'im' == channel_type or isDrawMe: # If IM/DM, or dall-e don't thread response
+        if 'im' == channel_type:  # If IM/DM don't thread response
             print('drop it in the channel!')    
             response = SLACK_WEB_CLIENT_BOT.chat_postMessage(
                     channel = channel_id,
                     text = response
                 )
+        elif isDrawMe:
+            print('drop drawing as attachment in the channel: ', dalleurl)    
+            webUrl = urllib.request.urlopen(dalleurl)
+
+            response = SLACK_WEB_CLIENT_BOT.files_upload(
+                title="MyImnage",
+                content=webUrl.read(),
+                filetype='png',
+                initial_comment=response,
+                channels=channel_id
+            )
+            
+#            response = SLACK_WEB_CLIENT_BOT.chat_postMessage(
+#                    channel = channel_id,
+#                    text = response
+#                )
+
         else:
             print('drop it in the thread!')    
             response = SLACK_WEB_CLIENT_BOT.chat_postMessage(
@@ -688,7 +710,7 @@ if __name__ == "__main__":
     START_TIME = printTimeElapsed(START_TIME, 'main start')
 
     TEST_STRINGS = [
-         "draw me asian Terminator photograph"
+         "draw me phineas and ferb playing hockey"
 #        "Chewy rocks! I like this quote: When you’re nice, people smile. When you’re really nice, people talk. And when you’re exceptionally and consistently nice, you go viral. https://jasonfeifer.bulletin.com/this-company-s-customer-service-is-so-insanely-good-it-went-viral"
 #        "Webinar: How to reason about indexing your Postgres database by <https://www.linkedin.com/in/lfittl/|Lukas Fittl> founder of <http://pganalyze.com|pganalyze.com> (he was founding engineer of Citus which I've used in previous project for managed sharded Postgres)  <https://us02web.zoom.us/webinar/register/9816552361071/WN_cjrUDKVuSqO8GckfiCWkbA>"
 #        "Bill Gates says crypto and NFTs are a sham.\n\nWell Windows and Office are a sham.  So it takes one to know one! https://www.cnn.com/2022/06/15/tech/bill-gates-crypto-nfts-comments/index.html"
