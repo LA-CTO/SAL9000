@@ -532,10 +532,20 @@ def SALResponse(eventAttributes):
             dalleurl = ''
             response = "OpenAI cannot draw " + text + " because " + e.user_message
         try:
-            response = SLACK_WEB_CLIENT_BOT.chat_postMessage(
-                channel = channel_id,
-                text = response
-            )
+            #If in SALLE_CHANNEL post in channel, otherwise post in thread
+            if SALLE_CHANNEL == channel_id:
+                response = SLACK_WEB_CLIENT_BOT.chat_postMessage(
+                    channel = channel_id,
+                    text = response
+                )
+            else:
+                response = SLACK_WEB_CLIENT_BOT.chat_postMessage(
+                        channel = channel_id,
+                        thread_ts=thread_ts,
+                        text = response
+                    )
+
+
         except SlackApiError as e:
         # You will get a SlackApiError if "ok" is False
             print('error postBlockToSlackChannel:', e)
@@ -788,7 +798,7 @@ if __name__ == "__main__":
         }
     SALResponse(eventAttributes)
     for thisTrend in trendsList:
-        thisMessage = "draw me " + thisTrend + " matte painting trending on deviantart"
+        thisMessage = "draw me " + thisTrend + ", matte painting trending on deviantart"
         eventAttributes = {
             'text': thisMessage, 
             'channel_id': TEST_CHANNEL_ID, 

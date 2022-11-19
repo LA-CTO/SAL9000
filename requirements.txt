@@ -12,3 +12,9 @@ openai
 rake_nltk
 python-rake
 #flask
+
+#google trends pytrends
+pytrends
+
+#grab layoff.fyi airtable data
+pyairtable
