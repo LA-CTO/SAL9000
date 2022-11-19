@@ -25,10 +25,13 @@ from fastapi.encoders import jsonable_encoder
 #openai
 import os
 import openai
+from openai.error import InvalidRequestError
 
 #urllib.request for getting openai generated png over http and upload into Slack
 import urllib.request
 
+#google trends https://towardsdatascience.com/google-trends-api-for-python-a84bc25db88f
+from pytrends.request import TrendReq
 
 def printTimeElapsed(starttime, label):
     endtime = datetime.utcnow()
@@ -473,14 +476,13 @@ def postBlockToSlackChannel(eventAttributes, block):
 # https://beta.openai.com/docs/guides/images/introduction
 def dalleOpenAI(drawMe):
     response = openai.Image.create(
-    prompt=drawMe,
-    n=1,
-    size="1024x1024"
-    )
+        prompt=drawMe,
+        n=1,
+        size="1024x1024"
+        )
     image_url = response['data'][0]['url']
     return image_url
     
-
 """
 sarcasticSAL takes eventAttributes with channel_id and text and calls OpenAI Marv to get a sarcastic response and posts in channel
 """
@@ -508,41 +510,45 @@ def SALResponse(eventAttributes):
 
     # if text contains 'draw me', activate Dall-e, otherwise SarcasticSAL                    
     print('text.lower():', text.lower())
-    isDrawMe = False
     if "draw me" in text.lower():
-        isDrawMe = True
         startIndex = text.lower().index("draw me") + len("draw me")
         text = text[startIndex:] 
         print('bout to draw text: ', text)
-        dalleurl = dalleOpenAI(text)
-        response = "I drew" + text + " <" + dalleurl +"|here>"
+        try:
+            dalleurl = dalleOpenAI(text)
+            webUrl = urllib.request.urlopen(dalleurl)
+
+            new_file = SLACK_WEB_CLIENT_BOT.files_upload(
+                title="MyImage",
+                content=webUrl.read(),
+                filetype='png'
+#                channels=channel_id
+            )
+            file_url = new_file.get("file").get("permalink")
+            print("uploaded image into slack permalink: ", file_url)
+            response = "I drew" + text + " <" + file_url +"|here>"
+
+        except InvalidRequestError as e:
+            dalleurl = ''
+            response = "OpenAI cannot draw " + text + " because " + e.user_message
+        try:
+            response = SLACK_WEB_CLIENT_BOT.chat_postMessage(
+                channel = channel_id,
+                text = response
+            )
+        except SlackApiError as e:
+        # You will get a SlackApiError if "ok" is False
+            print('error postBlockToSlackChannel:', e)
+            assert e.response["error"]    # str like 'invalid_auth', 'channel_not_found'
+
     else:
         response = sarcasticSALResponse(text)
-
-    try:
         if 'im' == channel_type:  # If IM/DM don't thread response
             print('drop it in the channel!')    
             response = SLACK_WEB_CLIENT_BOT.chat_postMessage(
-                    channel = channel_id,
-                    text = response
-                )
-        elif isDrawMe:
-            print('drop drawing as attachment in the channel: ', dalleurl)    
-            webUrl = urllib.request.urlopen(dalleurl)
-
-            response = SLACK_WEB_CLIENT_BOT.files_upload(
-                title="MyImnage",
-                content=webUrl.read(),
-                filetype='png',
-                initial_comment=response,
-                channels=channel_id
+                channel = channel_id,
+                text = response
             )
-            
-#            response = SLACK_WEB_CLIENT_BOT.chat_postMessage(
-#                    channel = channel_id,
-#                    text = response
-#                )
-
         else:
             print('drop it in the thread!')    
             response = SLACK_WEB_CLIENT_BOT.chat_postMessage(
@@ -550,10 +556,7 @@ def SALResponse(eventAttributes):
                     thread_ts=thread_ts,
                     text = response
                 )
-    except SlackApiError as e:
-        # You will get a SlackApiError if "ok" is False
-        print('error postBlockToSlackChannel:', e)
-        assert e.response["error"]    # str like 'invalid_auth', 'channel_not_found'
+
     return response    
 
 # This method will construct the Slack Block 
@@ -703,6 +706,23 @@ def searchSlackMessages(text, channel_id, resultCount, page, order):
 #    print ('search response: ', response)
     return response
 
+
+# Google Trend return list of most popular daily search terms
+# google trends https://towardsdatascience.com/google-trends-api-for-python-a84bc25db88f
+def getGoogleTrendList():
+
+    pytrend = TrendReq()
+    df = pytrend.trending_searches (pn='united_states')
+    df = df.reset_index()
+    print("df[0].size ", df[0].size)
+    print("df[0] ", df[0])
+    rtn = []
+    for row in df[0]:
+        rtn.append(row)
+    print("rtn:", rtn)
+    return rtn
+
+
 # Main for commandline run and quick tests
 # $env:GOOGLE_APPLICATION_CREDENTIALS="C:\code\SAL9000\sal9000-307923-dfcc8f474f83.json"
 if __name__ == "__main__":
@@ -710,7 +730,7 @@ if __name__ == "__main__":
     START_TIME = printTimeElapsed(START_TIME, 'main start')
 
     TEST_STRINGS = [
-         "draw me phineas and ferb playing hockey"
+         "draw me mandalorian riding a bicycle photograph style"
 #        "Chewy rocks! I like this quote: When you’re nice, people smile. When you’re really nice, people talk. And when you’re exceptionally and consistently nice, you go viral. https://jasonfeifer.bulletin.com/this-company-s-customer-service-is-so-insanely-good-it-went-viral"
 #        "Webinar: How to reason about indexing your Postgres database by <https://www.linkedin.com/in/lfittl/|Lukas Fittl> founder of <http://pganalyze.com|pganalyze.com> (he was founding engineer of Citus which I've used in previous project for managed sharded Postgres)  <https://us02web.zoom.us/webinar/register/9816552361071/WN_cjrUDKVuSqO8GckfiCWkbA>"
 #        "Bill Gates says crypto and NFTs are a sham.\n\nWell Windows and Office are a sham.  So it takes one to know one! https://www.cnn.com/2022/06/15/tech/bill-gates-crypto-nfts-comments/index.html"
@@ -730,9 +750,10 @@ if __name__ == "__main__":
     TEST_CHANNEL_NAME = 'test' #test
 
 # Test Dall-e draw
-#    dalleURL = dalleOpenAI("draw me Female Asian Terminator")
+#    dalleURL = dalleOpenAI(TEST_STRINGS[0])
 #    print('Dall-E: ', dalleURL)
 
+    getGoogleTrendList()
 
 #    for extractme in TEST_STRINGS:
 #        print('\nmain test Original text:', extractme)
@@ -749,21 +770,36 @@ if __name__ == "__main__":
 
 #    response = SLACK_WEB_CLIENT_USER.conversations_history(channel=TEST_CHANNEL_ID,latest=TEST_TS,limit=1,inclusive='true') 
     thisMessage = TEST_STRINGS[0]
+
 #    if response:
 #        print('retrived whole response: ', response)
 #        thisMessage =  response.get('messages')[0].get('text')
 #    print('Extracting real Slack message:', thisMessage)
 #    print("OpenAI extracted phrases:", extractKeyPhrasesOpenAI(thisMessage, NUM_BUTTONS_FIRST_POST))
 
-    eventAttributes = {
-        'text': thisMessage, 
-        'channel_id': TEST_CHANNEL_ID, 
-        'channel_type': "post", 
-        "thread_ts":    TEST_TS,
-        'user': TEST_USER,
-        }
 
+    trendsList = getGoogleTrendList()
+    eventAttributes = {
+            'text': "Drawing trends: " + " ".join(trendsList), 
+            'channel_id': TEST_CHANNEL_ID, 
+            'channel_type': "post", 
+            "thread_ts":    TEST_TS,
+            'user': TEST_USER,
+        }
     SALResponse(eventAttributes)
+    for thisTrend in trendsList:
+        thisMessage = "draw me " + thisTrend + " matte painting trending on deviantart"
+        eventAttributes = {
+            'text': thisMessage, 
+            'channel_id': TEST_CHANNEL_ID, 
+            'channel_type': "post", 
+            "thread_ts":    TEST_TS,
+            'user': TEST_USER,
+            }
+        SALResponse(eventAttributes)
+
+
+#    SALResponse(eventAttributes)
 
 #    constructAndPostBlock(eventAttributes)
 
