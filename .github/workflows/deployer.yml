@@ -25,7 +25,7 @@ jobs:
         # name of our function in our main.py file, defaults to the resource name suffix 
         entry_point: handleEvent
         # runtime to use for the function
-        runtime: python39
+        runtime: python310
         # the function execution timeout
         timeout: 60
         # the maximum number of instances for the function.
@@ -38,3 +38,10 @@ jobs:
 
 #       env_vars: # optional
 #       env_vars: # optional
+
+    # https://github.com/slackapi/slack-github-action
+    - name: Send GitHub Action trigger data to Slack workflow
+      id: slack
+      uses: slackapi/slack-github-action@v1.23.0
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
