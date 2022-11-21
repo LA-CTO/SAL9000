@@ -25,7 +25,7 @@ jobs:
         # name of our function in our main.py file, defaults to the resource name suffix 
         entry_point: handleEvent
         # runtime to use for the function
-        runtime: python39
+        runtime: python310
         # the function execution timeout
         timeout: 60
         # the maximum number of instances for the function.
