@@ -5,3 +5,4 @@ secret.txt
 sal9000-307923-dfcc8f474f83.json
 slacker-archive/
 __pycache__/
+.env
