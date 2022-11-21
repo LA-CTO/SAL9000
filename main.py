@@ -2,7 +2,7 @@
 # howto: https://towardsdatascience.com/extracting-keyphrases-from-text-rake-and-gensim-in-python-eefd0fad582f
 # 
 # Deployed to Google CLoud local - run from repo root dir:
-# gcloud functions deploy handleEvent --runtime python39 --trigger-http --allow-unauthenticated --project=sal9000-307923 --region=us-west2
+# gcloud functions deploy handleEvent --runtime python310 --trigger-http --allow-unauthenticated --project=sal9000-307923 --region=us-west2
 # url: https://us-west2-sal9000-307923.cloudfunctions.net/handleEvent
 
 # keywordExtraction API call: https://us-west2-sal9000-307923.cloudfunctions.net/keyphraseExtraction?message=helloSal9000
@@ -111,7 +111,7 @@ def fetchChannelsMap():
 #
 # Deployed to Google CLoud local - run from repo root dir, first set env var for GCP credentials location:
 # $env:GOOGLE_APPLICATION_CREDENTIALS="C:\code\SAL9000\sal9000-307923-dfcc8f474f83.json"
-# gcloud functions deploy handleEvent --runtime python39 --trigger-http --allow-unauthenticated --project=sal9000-307923 --region=us-west2
+# gcloud functions deploy handleEvent --runtime python310 --trigger-http --allow-unauthenticated --project=sal9000-307923 --region=us-west2
 #
 # /log [seconds] [error]
 def handleSlashCommand(request):
@@ -248,8 +248,6 @@ def tldrOpenAI(summarizeMe):
     response =  response.choices[0].text
     return response
 
-# Deployed to Google CLoud local - run from repo root dir:
-# gcloud functions deploy keyphraseExtraction --runtime python39 --trigger-http --allow-unauthenticated --project=sal9000-307923 --region=us-west2
 def keyphraseExtraction(request):
     """Responds to any HTTP request.
     Args:
@@ -296,7 +294,7 @@ EventSubscription detected a top post in channel, SAL9000 to extract KeyPhrase, 
 Use selected a keyphrase from SAL9001 first response, perform Search and Respond with search results
 
 Deployed to Google CLoud local - run from repo root dir:
-gcloud functions deploy handleEvent --runtime python39 --trigger-http --allow-unauthenticated --project=sal9000-307923 --region=us-west2
+gcloud functions deploy handleEvent --runtime python310 --trigger-http --allow-unauthenticated --project=sal9000-307923 --region=us-west2
 
 """
 
