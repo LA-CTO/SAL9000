@@ -1,5 +1,8 @@
 # SAL9000
 
+12/5/2022 UPDATE
+With the recent buzz in OpenAI GPTChat, I just 'upgraded' @SAL 9001  from "Marvin the Sarcastic Chatbot on curie-1 engine" to GPTChat on davince-3 engine.  SAL is already a member in a few channels like #announcements #techandtools #sall-e and will automatically respond to all top posts.  If you @mention SAL in a thread on any channel you can also trigger a response. If your prompt starts with "@SAL 9001 draw me" you will trigger DALL-E.  Finally you can chat directly with @SAL 9001  for private GPTChat or DALL-E.  Davinci engine costs 10x more than Curie engine, so I set a OpenAI budget and SAL will be disabled if we go above budget.  Enjoy your new AI overlord!
+
 SAL 9000 became sentient on March 16 2021 on CTO Slackers.
 
 RAKE https://github.com/fabianvf/python-rake
