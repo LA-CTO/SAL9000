@@ -56,8 +56,10 @@ SLACK_USER_TOKEN = getGCPSecretKey('SLACK_USER_TOKEN')
 openai.api_key = getGCPSecretKey('OPENAI_API_KEY')
 # https://beta.openai.com/docs/models/gpt-3
 # https://openai.com/api/pricing/
-# OPENAI_ENGINE = "text-davinci-002"
-OPENAI_ENGINE = "text-curie-001"
+# OPENAI_ENGINE = "text-curie-001"
+OPENAI_ENGINE = "text-davinci-003"
+
+OPENAI_RESPONSE_MAX_TOKENS = 100
 
 SLACK_WEB_CLIENT_BOT = WebClient(token=SLACK_BOT_TOKEN) 
 SLACK_WEB_CLIENT_USER = WebClient(token=SLACK_USER_TOKEN) 
@@ -332,7 +334,8 @@ def handleEvent(request):
             elif 'text' in event and not event.get('text').startswith("/"): #User top post, SAL to respond for first time OR DM directly with SAL9001, activate Sarcastic SAL Chatbot
                 print("main.handleEvent GET text: ", event['text'])
                 channel_type = event['channel_type']
-                if 'im' == channel_type or ('thread_ts' in event and SAL_USER in event.get('text')) or SALLE_CHANNEL == event['channel']: # DM with @SAL9001 or user evoked SAL in thread - activate Sarcastic/Dall-E SAL Chatbot
+                # if DM with @SAL9001 or user evoked SAL in thread or text starts with 'draw me' - activate GPTChat/Dall-E SAL Chatbot
+                if 'im' == channel_type or ('thread_ts' in event and SAL_USER in event.get('text')) or SALLE_CHANNEL == event['channel'] or "draw me" in event['text'].lower(): 
                     eventAttributes = {
                         'user': event['user'],
                         'channel_id': event['channel'],
@@ -470,6 +473,26 @@ def postBlockToSlackChannel(eventAttributes, block):
         assert e.response["error"]    # str like 'invalid_auth', 'channel_not_found'
     return response    
 
+
+"""
+GPTChat 
+"""
+def GPTChat(text):
+    response = openai.Completion.create(
+        engine=OPENAI_ENGINE,
+        prompt=text + "\n",
+        temperature=0.5,
+        max_tokens=OPENAI_RESPONSE_MAX_TOKENS,
+        top_p=0.3,
+        frequency_penalty=0.5,
+        presence_penalty=0.0
+    )
+#    responseTxt = response.choices[0].text[6:] #skip the first 6 chars which is "Marv: "
+    responseTxt = response.choices[0].text
+    print('GPTChat response:', responseTxt)
+    return responseTxt
+
+
 # DALL-E image complete with OpenAI
 # https://beta.openai.com/docs/guides/images/introduction
 def dalleOpenAI(drawMe):
@@ -506,8 +529,8 @@ def SALResponse(eventAttributes):
     text = eventAttributes['text']
     channel_type = eventAttributes['channel_type']
 
-    # if text contains 'draw me', activate Dall-e, otherwise SarcasticSAL                    
-    print('text.lower():', text.lower())
+    # if text contains 'draw me', activate Dall-e, otherwise GPTChat                    
+#    print('text.lower():', text.lower())
     if "draw me" in text.lower():
         startIndex = text.lower().index("draw me") + len("draw me")
         text = text[startIndex:] 
@@ -530,8 +553,8 @@ def SALResponse(eventAttributes):
             dalleurl = ''
             response = "OpenAI cannot draw " + text + " because " + e.user_message
         try:
-            #If in SALLE_CHANNEL post in channel, otherwise post in thread
-            if SALLE_CHANNEL == channel_id:
+            #If in SALLE_CHANNEL or DM @SAL post in channel, otherwise post in thread
+            if SALLE_CHANNEL == channel_id or 'im' == channel_type:
                 response = SLACK_WEB_CLIENT_BOT.chat_postMessage(
                     channel = channel_id,
                     text = response
@@ -550,15 +573,15 @@ def SALResponse(eventAttributes):
             assert e.response["error"]    # str like 'invalid_auth', 'channel_not_found'
 
     else:
-        response = sarcasticSALResponse(text)
+        response = GPTChat(text)
         if 'im' == channel_type:  # If IM/DM don't thread response
-            print('drop it in the channel!')    
+            print('respond in the channel!')    
             response = SLACK_WEB_CLIENT_BOT.chat_postMessage(
                 channel = channel_id,
                 text = response
             )
         else:
-            print('drop it in the thread!')    
+            print('respond in the thread!')    
             response = SLACK_WEB_CLIENT_BOT.chat_postMessage(
                     channel = channel_id,
                     thread_ts=thread_ts,
@@ -585,9 +608,8 @@ def constructBlock(eventAttributes):
 #    extractedKeyPhrases = extractKeyPhrasesRAKE(text, keyphrasesCap, COMMON_WORDS_3K)
     extractedKeyPhrases = extractKeyPhrasesOpenAI(text, keyphrasesCap)
 
-    sarcasticResponse = sarcasticSALResponse(text)
-    greetings = sarcasticResponse + "\nOther CTO Slackers have this to say:\n"
-
+    GPTChatResponse = GPTChat(text)
+    greetings = "OpenAI GPT-3 " + OPENAI_ENGINE + "response: " +GPTChatResponse + "\nOther CTO Slackers have this to say:\n"
     slack_block_kit = [
         {
 			"type": "image",
@@ -738,7 +760,8 @@ if __name__ == "__main__":
     START_TIME = printTimeElapsed(START_TIME, 'main start')
 
     TEST_STRINGS = [
-         "draw me mandalorian riding a bicycle photograph style"
+         "Has anyone tried https://test.ai/ for AI based QA?  I may try this out soon."
+#         "draw me mandalorian riding a bicycle photograph style"
 #        "Chewy rocks! I like this quote: When you’re nice, people smile. When you’re really nice, people talk. And when you’re exceptionally and consistently nice, you go viral. https://jasonfeifer.bulletin.com/this-company-s-customer-service-is-so-insanely-good-it-went-viral"
 #        "Webinar: How to reason about indexing your Postgres database by <https://www.linkedin.com/in/lfittl/|Lukas Fittl> founder of <http://pganalyze.com|pganalyze.com> (he was founding engineer of Citus which I've used in previous project for managed sharded Postgres)  <https://us02web.zoom.us/webinar/register/9816552361071/WN_cjrUDKVuSqO8GckfiCWkbA>"
 #        "Bill Gates says crypto and NFTs are a sham.\n\nWell Windows and Office are a sham.  So it takes one to know one! https://www.cnn.com/2022/06/15/tech/bill-gates-crypto-nfts-comments/index.html"
@@ -761,9 +784,10 @@ if __name__ == "__main__":
 #    dalleURL = dalleOpenAI(TEST_STRINGS[0])
 #    print('Dall-E: ', dalleURL)
 
-    getGoogleTrendList()
 
-#    for extractme in TEST_STRINGS:
+    for extractme in TEST_STRINGS:
+         GPTChat(extractme)
+
 #        print('\nmain test Original text:', extractme)
 #        raked  = extractKeyPhrasesRAKE(extractme, NUM_BUTTONS_FIRST_POST, COMMON_WORDS_3K)
 #        print('raked return top:', raked)
@@ -786,6 +810,8 @@ if __name__ == "__main__":
 #    print("OpenAI extracted phrases:", extractKeyPhrasesOpenAI(thisMessage, NUM_BUTTONS_FIRST_POST))
 
 
+"""
+# Google trend draw test
     trendsList = getGoogleTrendList()
     eventAttributes = {
             'text': "Drawing trends: " + " ".join(trendsList), 
@@ -806,7 +832,6 @@ if __name__ == "__main__":
             }
         SALResponse(eventAttributes)
 
-
 #    SALResponse(eventAttributes)
 
 #    constructAndPostBlock(eventAttributes)
@@ -819,5 +844,6 @@ if __name__ == "__main__":
     # test Gcloud logging get entries
 #
 #     log_entries = gcloud_logging.list_entries(10, 0)
+"""
 
 
