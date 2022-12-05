@@ -75,8 +75,8 @@ STOPWORDS_LIST=RAKE.SmartStopList()
 RAKE_OBJECT = RAKE.Rake(RAKE.SmartStopList())
 
 STATIC_CHANNEL_ID_NAME_MAP = {}
-#  Doing @user will cause SAL to push notify the user, so only do it for  certain channels:
-STATIC_USER_MENTION_CHANNEL_LIST = ['techtools', 'events', 'architecture-and-budget-review', 'startups', 'venture-capital',  'slacker-agels', 'test']
+#  Doing @user will cause SAL to push notify the user, so only do it for certain channels:
+STATIC_USER_MENTION_CHANNEL_LIST = ['techandtools', 'events', 'architecture-and-budget-review', 'startups', 'venture-capital',  'slacker-agels', 'test']
 
 
 """
@@ -609,7 +609,7 @@ def constructBlock(eventAttributes):
     extractedKeyPhrases = extractKeyPhrasesOpenAI(text, keyphrasesCap)
 
     GPTChatResponse = GPTChat(text)
-    greetings = "OpenAI GPT-3 " + OPENAI_ENGINE + "response: " +GPTChatResponse + "\nOther CTO Slackers have this to say:\n"
+    greetings = "OpenAI GPT-3 " + OPENAI_ENGINE + ": " +GPTChatResponse + "\nOther CTO Slackers have this to say:\n"
     slack_block_kit = [
         {
 			"type": "image",
