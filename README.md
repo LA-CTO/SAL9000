@@ -5,14 +5,14 @@ With the recent buzz in OpenAI GPTChat, I just 'upgraded' @SAL 9001  from "Marvi
 
 SAL 9000 became sentient on March 16 2021 on CTO Slackers.
 
+SAL upgraded from RAKE to OpenAI GPT Token parsing in Q1 2022
+
 RAKE https://github.com/fabianvf/python-rake
 howto: https://towardsdatascience.com/extracting-keyphrases-from-text-rake-and-gensim-in-python-eefd0fad582f
  
 Deployed to Google CLoud local - run from repo root dir:
 gcloud functions deploy handleEvent --runtime python39 --trigger-http --allow-unauthenticated --project=sal9000-307923 --region=us-west2
 
-Call functionl: https://us-west2-sal9000-307923.cloudfunctions.net/handleEvent?message=helloSal9000
- 
 3/16/21: @here Slackers: I created the SAL 9000 slackbot using Zapier + python_rake in Google Cloud Function REST API  - Ask any question in this #techandtools channel, it will pull 1st most relevant result from Slack search of key phrase in #techandtools.  
 
 3/10/22: I just redeployed @SAL 9001 - For keyword extraction, I replaced RAKE with OpenAI Completion (thx @Helin Cao for the tip), so now SAL should be smarter with extracting most relevant keywords from your question to search against Slack archive.  OpenAI also does not provide keyword weights, so you won't see numbers in parenthesis in the search button labels anymore. For those interested in my gnarly python GCP Cloud Function code to build SAL: https://github.com/genechuang/SAL9000/blob/main/main.py
