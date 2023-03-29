@@ -13,7 +13,6 @@ VERY_BEGINNING_TIME = datetime.utcnow()
 START_TIME = VERY_BEGINNING_TIME
 
 import json
-import RAKE
 from google.cloud import secretmanager
 from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
@@ -71,8 +70,6 @@ NUM_BUTTONS_LATER = 5
 #Number of search results SAL returns
 NUM_SEARCH_RESULTS = 6
 
-STOPWORDS_LIST=RAKE.SmartStopList()
-RAKE_OBJECT = RAKE.Rake(RAKE.SmartStopList())
 
 STATIC_CHANNEL_ID_NAME_MAP = {}
 #  Doing @user will cause SAL to push notify the user, so only do it for certain channels:
@@ -146,9 +143,6 @@ def handleSlashCommand(request):
 #        return jsonify(response_type='in_channel',text=rtnText)
         return jsonable_encoder(rtnText)
 
-def RAKEPhraseExtraction(extractString):
-    extractString = removeURLsFromText(extractString)
-    return RAKE_OBJECT.run(extractString)
 
 # Return reverse order List of 2nd element
 def sortList(list):
@@ -158,22 +152,6 @@ def sortList(list):
     list.reverse()
     return list
 
-
-# Return the top weighed Phrases from RAKE of stringArray
-def extractKeyPhrasesRAKE(stringArray, keywordsCap, removeCommonWords):
-    raked = RAKEPhraseExtraction(stringArray)
-#    print("Raked results: ", raked)
-    returnList = []
-    for i in raked:
-        isCommon = i[0] in removeCommonWords
-        if isCommon:
-            continue
-        returnList.append(i)
-
-#    print("Raked results remove common words: ", returnList)
-    returnList = returnList[:keywordsCap]
-#    print("Raked results capped at: ", str(keywordsCap) + ' :' + str(returnList))
-    return returnList
 
 # Return the extracted key phrases using Open AI
 def extractKeyPhrasesOpenAI(extractMe, keywordsCap):
@@ -274,8 +252,6 @@ def keyphraseExtraction(request):
     else:
         extractMe = ''
     
-# Switched from RAKE to OpenAI Completion 3/10/22
-#    extractedKeyPhrases = extractKeyPhrasesRAKE(extractMe, keyphrasesCap, COMMON_WORDS_3K)
     extractedKeyPhrases = extractKeyPhrasesOpenAI(extractMe, NUM_BUTTONS_FIRST_POST)
 
     return str(extractedKeyPhrases)
@@ -478,6 +454,7 @@ def postBlockToSlackChannel(eventAttributes, block):
 GPTChat 
 """
 def GPTChat(text):
+    print('GPTChat request:', text)
     response = openai.Completion.create(
         engine=OPENAI_ENGINE,
         prompt=text + "\n",
@@ -604,8 +581,6 @@ def constructBlock(eventAttributes):
     if 'order' in eventAttributes:
         order = eventAttributes['order']
 
-# Switched from RAKE to OpenAI Completion 3/10/22
-#    extractedKeyPhrases = extractKeyPhrasesRAKE(text, keyphrasesCap, COMMON_WORDS_3K)
     extractedKeyPhrases = extractKeyPhrasesOpenAI(text, keyphrasesCap)
 
     GPTChatResponse = GPTChat(text)
@@ -789,8 +764,6 @@ if __name__ == "__main__":
          GPTChat(extractme)
 
 #        print('\nmain test Original text:', extractme)
-#        raked  = extractKeyPhrasesRAKE(extractme, NUM_BUTTONS_FIRST_POST, COMMON_WORDS_3K)
-#        print('raked return top:', raked)
 
 #        print("OpenAI extracted phrases:", extractKeyPhrasesOpenAI(extractme, NUM_BUTTONS_FIRST_POST))
 #        print("OpenAI tldr:", tldrOpenAI(extractme))
