@@ -155,6 +155,8 @@ def sortList(list):
 
 # Return the extracted key phrases using Open AI
 def extractKeyPhrasesOpenAI(extractMe, keywordsCap):
+    if len(extractMe) == 0:
+        return []
     #Gonna strip all URLs from text for now
 #    extractMe  = removeURLsFromText(extractMe)
 #    print("stripped URLs", extractMe)
@@ -783,7 +785,8 @@ if __name__ == "__main__":
 #        print('retrived whole response: ', response)
 #        thisMessage =  response.get('messages')[0].get('text')
 #    print('Extracting real Slack message:', thisMessage)
-#    print("OpenAI extracted phrases:", extractKeyPhrasesOpenAI(thisMessage, NUM_BUTTONS_FIRST_POST))
+    print("OpenAI extracted phrases:", extractKeyPhrasesOpenAI(thisMessage, NUM_BUTTONS_FIRST_POST))
+    print("OpenAI extracted phrases null:", extractKeyPhrasesOpenAI("", NUM_BUTTONS_FIRST_POST))
 
 
 """
