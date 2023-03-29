@@ -455,6 +455,9 @@ GPTChat
 """
 def GPTChat(text):
     print('GPTChat request:', text)
+    print('GPTChat request length:', text.length)
+    if text.length < 1:
+        return "I have no answer to that."
     response = openai.Completion.create(
         engine=OPENAI_ENGINE,
         prompt=text + "\n",
