@@ -87,7 +87,7 @@ SAL_IMAGE = 'https://bit.ly/39eK1bY'
 SAL_THIN_IMAGE = 'https://files.slack.com/files-pri/T5FGEAL8M-F01SXUR4CJD/sal_thin.jpg?pub_secret=97e5e68214'
 
 START_TIME = printTimeElapsed(START_TIME, 'all initialization time')
-
+"""
 def fetchChannelsMap():
     if len(STATIC_CHANNEL_ID_NAME_MAP) == 0:
         result = SLACK_WEB_CLIENT_USER.conversations_list(types="public_channel, private_channel")
@@ -97,7 +97,7 @@ def fetchChannelsMap():
             print("this channel: ", channel['name'])
             STATIC_CHANNEL_ID_NAME_MAP.update({channel["id"]: channel["name"]})
     return STATIC_CHANNEL_ID_NAME_MAP
-
+"""
 # Handle SAL9001 slash commands
 # Slack handleEvent webhook: https://us-west2-sal9000-307923.cloudfunctions.net/handleSlashCommand
 # This webhook is set here: https://api.slack.com/apps/A01R8CEGVMF/slash-commands?
@@ -658,7 +658,6 @@ def constructBlock(eventAttributes):
             if thread_ts == this_ts: #skip this parent post
                 continue
 #            Doing @user will cause SAL to push notify the user
-            channel_name = fetchChannelsMap().get(channel_id)
             thisUserName = "<@" + thisUserName + ">"
 
             searchResultsString += "<" + thisSearchResult['permalink'] + "|" + thisDate + "> " + " from " + thisUserName+ "\n"
@@ -697,14 +696,12 @@ def removeURLsFromText(text):
 #
 # Returns json of results as described: https://api.slack.com/methods/search.messages  
 def searchSlackMessages(text, channel_id, resultCount, page, order):
-    print ('searchSlackMessages in channel_id: ', channel_id)
-    channel_name = fetchChannelsMap().get(channel_id)
-    print ('searchSlackMessages in channel_name: ', channel_name)
+#    print ('searchSlackMessages in channel_id: ', channel_id)
+#    channel_name = fetchChannelsMap().get(channel_id)
+#    print ('searchSlackMessages in channel_name: ', channel_name)
 
-    if channel_name is None:
-        response = SLACK_WEB_CLIENT_USER.search_messages(query='"' + str(text) + '"', sort='score', sort_dir=order, count=resultCount, page=page)
-    else:
-        response = SLACK_WEB_CLIENT_USER.search_messages(query='in:#' + str(channel_name) + ' "' + text + '"', sort='score', sort_dir=order, count=resultCount, page=page)
+    response = SLACK_WEB_CLIENT_USER.search_messages(query='"' + str(text) + '"', sort='score', sort_dir=order, count=resultCount, page=page)
+#    response = SLACK_WEB_CLIENT_USER.search_messages(query='in:#' + str(channel_name) + ' "' + text + '"', sort='score', sort_dir=order, count=resultCount, page=page)
 
 #    print ('search response: ', response)
     return response
@@ -753,6 +750,16 @@ if __name__ == "__main__":
     TEST_CHANNEL_ID = 'GUEPXFVDE' #test
     TEST_CHANNEL_NAME = 'test' #test
 
+    eventAttributes = {
+            'text': "Best CRM?", 
+            'channel_id': TEST_CHANNEL_ID, 
+            'channel_type': "post", 
+            "thread_ts": "1683745710.504239",
+            'user': TEST_USER,
+            'keyphrasesCap': NUM_BUTTONS_FIRST_POST 
+        }
+    constructAndPostBlock(eventAttributes)
+
 # Test Dall-e draw
 #    dalleURL = dalleOpenAI(TEST_STRINGS[0])
 #    print('Dall-E: ', dalleURL)
@@ -767,7 +774,7 @@ if __name__ == "__main__":
 #        print("OpenAI tldr:", tldrOpenAI(extractme))
 #        print("OpenAI answer:", qAndAOpenAI(extractme))
 #        print("OpenAI sarcastic:", SALResponse(extractme))
-#    postMessageToSlackChannel('test', '', 'Hello from SAL 9001! :tada:')        
+#    postMessageToSlackChannel('test', '', 'Best crm?')        
 
     # Test Constructing and posting new block to Slack
 
@@ -780,6 +787,7 @@ if __name__ == "__main__":
 #    print('Extracting real Slack message:', thisMessage)
     print("OpenAI extracted phrases:", extractKeyPhrasesOpenAI(thisMessage, NUM_BUTTONS_FIRST_POST))
     print("OpenAI extracted phrases null:", extractKeyPhrasesOpenAI("", NUM_BUTTONS_FIRST_POST))
+
 
 
 """
@@ -806,7 +814,7 @@ if __name__ == "__main__":
 
 #    SALResponse(eventAttributes)
 
-#    constructAndPostBlock(eventAttributes)
+    constructAndPostBlock(eventAttributes)
 
 #    channelsMap = fetchChannelsMap()
 #    print('channelsMap: ', channelsMap)
