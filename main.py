@@ -70,12 +70,6 @@ NUM_BUTTONS_LATER = 5
 #Number of search results SAL returns
 NUM_SEARCH_RESULTS = 6
 
-
-STATIC_CHANNEL_ID_NAME_MAP = {}
-#  Doing @user will cause SAL to push notify the user, so only do it for certain channels:
-STATIC_USER_MENTION_CHANNEL_LIST = ['techandtools', 'events', 'architecture-and-budget-review', 'startups', 'venture-capital',  'slacker-agels', 'test']
-
-
 """
 COMMON_WORDS_3K = {''}
 
@@ -663,10 +657,10 @@ def constructBlock(eventAttributes):
                 continue
             if thread_ts == this_ts: #skip this parent post
                 continue
-#            Doing @user will cause SAL to push notify the user, so only do it for  certain channels:
+#            Doing @user will cause SAL to push notify the user
             channel_name = fetchChannelsMap().get(channel_id)
-            if channel_name in STATIC_USER_MENTION_CHANNEL_LIST:
-                thisUserName = "<@" + thisUserName + ">"
+            thisUserName = "<@" + thisUserName + ">"
+
             searchResultsString += "<" + thisSearchResult['permalink'] + "|" + thisDate + "> " + " from " + thisUserName+ "\n"
  #           searchResultsString += "<" + thisSearchResult['permalink'] + "|" + thisDate + "> " + " from " + thisUserName+ ": " + thisTLDR + "\n"
             count += 1
