@@ -662,7 +662,6 @@ def constructBlock(eventAttributes):
             thisUserName = "<@" + thisUserName + ">"
 
             searchResultsString += "<" + thisSearchResult['permalink'] + "|" + thisDate + "> " + " from " + thisUserName+ "\n"
- #           searchResultsString += "<" + thisSearchResult['permalink'] + "|" + thisDate + "> " + " from " + thisUserName+ ": " + thisTLDR + "\n"
             count += 1
 
     if len(searchResultsString) == 0:

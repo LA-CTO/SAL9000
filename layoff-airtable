@@ -1,0 +1,13 @@
+
+import os
+from pyairtable import Table, Api
+
+
+#pyAirTable docs: https://pyairtable.readthedocs.io/en/latest/getting-started.html
+API_KEY = os.environ["AIRTABLE_API_KEY"]
+api = Api(API_KEY)
+print(api.all('shrqYt5kSqMzHV9R5', 'tbl8c8kanuNB6bPYr'))
+
+table = Table(API_KEY, 'shrqYt5kSqMzHV9R5', 'tbl8c8kanuNB6bPYr')
+print("all:", table.all())
+
