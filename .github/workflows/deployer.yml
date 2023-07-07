@@ -7,15 +7,24 @@ jobs:
   run:
     # worker runs on latest ubuntu
     runs-on: ubuntu-latest
+    permissions:
+      contents: 'read'
+      id-token: 'write'
 
     steps:
     # checkout to our repository so we have access to the source code
-    
-    # the actual deployment to google
-    - name: Cloud Functions Deploy
-      uses: google-github-actions/deploy-cloud-functions@v1
+    - uses: 'actions/checkout@v3'
+
+    - id: 'auth'
+      uses: 'google-github-actions/auth@v1'
       with:
-        credentials: ${{ secrets.GCP_SA_KEY }}
+        workload_identity_provider: 'projects/859177010724/locations/global/workloadIdentityPools/my-pool/providers/my-provider'
+        service_account: 'my-service-account@${{ secrets.GCP_PROJECT_ID }}.iam.gserviceaccount.com'
+
+    # the actual deployment to google https://github.com/marketplace/actions/cloud-functions-deploy or https://github.com/google-github-actions/deploy-cloud-functions
+    - id: 'deploy'
+      uses: 'google-github-actions/deploy-cloud-functions@v1.0.1'
+      with:
         name: handleEvent
         description: SAL9001 deployment # nullable
         project_id: ${{ secrets.GCP_PROJECT_ID }}
@@ -28,15 +37,9 @@ jobs:
         # the function execution timeout
         timeout: 60
         # the maximum number of instances for the function.
-        max_instances: 1
+        #max_instances: 1
         # optional configs, see google-cloud-actions/deploy-cloud-functions for full reference
         # list of key-value pairs to set as environment variables in the form KEY1=VALUE1,KEY2=VALUE2.
-        
-#        event_trigger_type: http
-#        allow-unauthenticated: 1
-
-#       env_vars: # optional
-#       env_vars: # optional
 
     # https://github.com/slackapi/slack-github-action
     - name: Send GitHub Action trigger data to Slack workflow

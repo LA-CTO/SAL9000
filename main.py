@@ -468,7 +468,7 @@ sarcasticSAL takes eventAttributes with channel_id and text and calls OpenAI Mar
 """
 def sarcasticSALResponse(text):
     response = openai.Completion.create(
-        engine=OPENAI_ENGINE,
+        engine=OPENAI_COMPLETION_ENGINE,
         prompt="Marv is a chatbot that reluctantly answers questions with sarcastic responses:\n\nYou: " + text + "\n",
         temperature=0.5,
         max_tokens=60,
