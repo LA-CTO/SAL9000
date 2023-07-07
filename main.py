@@ -53,12 +53,12 @@ SLACK_BOT_TOKEN = getGCPSecretKey('SLACK_BOT_TOKEN')
 SLACK_USER_TOKEN = getGCPSecretKey('SLACK_USER_TOKEN')
 
 openai.api_key = getGCPSecretKey('OPENAI_API_KEY')
-# https://beta.openai.com/docs/models/gpt-3
+# https://platform.openai.com/docs/models
 # https://openai.com/api/pricing/
-# OPENAI_ENGINE = "text-curie-001"
-OPENAI_ENGINE = "text-davinci-003"
-
-OPENAI_RESPONSE_MAX_TOKENS = 200
+#OPENAI_COMPLETION_ENGINE = "text-davinci-003"
+#OPENAI_CHAT_ENGINE = "gpt-4-32k"
+OPENAI_COMPLETION_ENGINE = "text-davinci-003"
+OPENAI_CHAT_ENGINE = "gpt-4"
 
 SLACK_WEB_CLIENT_BOT = WebClient(token=SLACK_BOT_TOKEN) 
 SLACK_WEB_CLIENT_USER = WebClient(token=SLACK_USER_TOKEN) 
@@ -167,7 +167,7 @@ def extractKeyPhrasesOpenAI(extractMe, keywordsCap):
     extractMe = extractMe.replace(")", "")
     print("extractKeyPhrasesOpenAI stripped:" + extractMe)
     response = openai.Completion.create(
-        engine=OPENAI_ENGINE,
+        engine=OPENAI_COMPLETION_ENGINE,
         prompt="Extract keywords from this text:\n\n" + extractMe, 
         temperature=0.3,
         max_tokens=60,
@@ -194,26 +194,11 @@ def extractKeyPhrasesOpenAI(extractMe, keywordsCap):
     return returnList
 
 
-# Return Q&A with OpenAI
-
-def qAndAOpenAI(answerMe):
-    response = openai.Completion.create(
-        engine=OPENAI_ENGINE,
-        prompt="I am a highly intelligent question answering bot. If you ask me a question that is rooted in truth, I will give you the answer. If you ask me a question that is nonsense, trickery, or has no clear answer, I will respond with \"Unknown\".\n\nQ: " + answerMe,
-        temperature=0,
-        max_tokens=100,
-        top_p=1,
-        frequency_penalty=0.0,
-        presence_penalty=0.0
-        )
-
-    return response
-
 # Return TL;DR summarization with OpenAI
 
 def tldrOpenAI(summarizeMe):
     response = openai.Completion.create(
-        engine=OPENAI_ENGINE,
+        engine=OPENAI_COMPLETION_ENGINE,
         prompt=summarizeMe +"\n\nTl;dr",
         temperature=0.7,
         max_tokens=60,
@@ -306,7 +291,7 @@ def handleEvent(request):
             elif 'text' in event and not event.get('text').startswith("/"): #User top post, SAL to respond for first time OR DM directly with SAL9001, activate Sarcastic SAL Chatbot
                 print("main.handleEvent GET text: ", event['text'])
                 channel_type = event['channel_type']
-                # if DM with @SAL9001 or user evoked SAL in thread or text starts with 'draw me' - activate GPTChat/Dall-E SAL Chatbot
+                # if DM with @SAL9001 or user evoked SAL in thread or text starts with 'draw me' - activate ChatGPT/Dall-E SAL Chatbot
                 if 'im' == channel_type or ('thread_ts' in event and SAL_USER in event.get('text')) or SALLE_CHANNEL == event['channel'] or "draw me" in event['text'].lower(): 
                     eventAttributes = {
                         'user': event['user'],
@@ -446,26 +431,29 @@ def postBlockToSlackChannel(eventAttributes, block):
     return response    
 
 
+# Return Q&A with OpenAI
+
+def qAndAOpenAI(answerMe):
+    response = openai.ChatCompletion.create(
+        model=OPENAI_CHAT_ENGINE, 
+        messages=[{"role": "user", "content": answerMe}])
+
+    return response
+
 """
-GPTChat 
+ChatGPT 
 """
-def GPTChat(text):
-    print('GPTChat request:', text)
-    print('GPTChat request length:', len(text))
+def ChatGPT(text):
+    print('ChatGPT request:', text)
+    print('ChatGPT request length:', len(text))
     if len(text) < 1:
         return "I have no answer to that."
-    response = openai.Completion.create(
-        engine=OPENAI_ENGINE,
-        prompt=text + "\n",
-        temperature=0.5,
-        max_tokens=OPENAI_RESPONSE_MAX_TOKENS,
-        top_p=0.3,
-        frequency_penalty=0.5,
-        presence_penalty=0.0
-    )
-#    responseTxt = response.choices[0].text[6:] #skip the first 6 chars which is "Marv: "
-    responseTxt = response.choices[0].text
-    print('GPTChat response:', responseTxt)
+    responseTxt = openai.ChatCompletion.create(
+        model=OPENAI_CHAT_ENGINE, 
+        messages=[{"role": "user", "content": text}])
+    print('ChatGPT raw response:', responseTxt)
+    responseTxt = responseTxt.choices[0].message.content
+    print("ChatGPT responseTxt.choices[0].message.content: ", responseTxt)
     return responseTxt
 
 
@@ -505,7 +493,7 @@ def SALResponse(eventAttributes):
     text = eventAttributes['text']
     channel_type = eventAttributes['channel_type']
 
-    # if text contains 'draw me', activate Dall-e, otherwise GPTChat                    
+    # if text contains 'draw me', activate Dall-e, otherwise ChatGPT                    
 #    print('text.lower():', text.lower())
     if "draw me" in text.lower():
         startIndex = text.lower().index("draw me") + len("draw me")
@@ -549,7 +537,7 @@ def SALResponse(eventAttributes):
             assert e.response["error"]    # str like 'invalid_auth', 'channel_not_found'
 
     else:
-        response = GPTChat(text)
+        response = ChatGPT(text)
         if 'im' == channel_type:  # If IM/DM don't thread response
             print('respond in the channel!')    
             response = SLACK_WEB_CLIENT_BOT.chat_postMessage(
@@ -582,8 +570,8 @@ def constructBlock(eventAttributes):
 
     extractedKeyPhrases = extractKeyPhrasesOpenAI(text, keyphrasesCap)
 
-    GPTChatResponse = GPTChat(text)
-    greetings = "OpenAI GPT-3 " + OPENAI_ENGINE + ": " +GPTChatResponse + "\nOther CTO Slackers have this to say:\n"
+    ChatGPTResponse = ChatGPT(text)
+    greetings = "OpenAI Chat Model " + OPENAI_CHAT_ENGINE + ": " + ChatGPTResponse + "\nOther CTO Slackers have this to say:\n"
     slack_block_kit = [
         {
 			"type": "image",
@@ -730,13 +718,13 @@ if __name__ == "__main__":
     START_TIME = printTimeElapsed(START_TIME, 'main start')
 
     TEST_STRINGS = [
-         "Has anyone tried https://test.ai/ for AI based QA?  I may try this out soon."
+#         "Has anyone tried https://test.ai/ for AI based QA?  I may try this out soon."
 #         "draw me mandalorian riding a bicycle photograph style"
 #        "Chewy rocks! I like this quote: When you’re nice, people smile. When you’re really nice, people talk. And when you’re exceptionally and consistently nice, you go viral. https://jasonfeifer.bulletin.com/this-company-s-customer-service-is-so-insanely-good-it-went-viral"
 #        "Webinar: How to reason about indexing your Postgres database by <https://www.linkedin.com/in/lfittl/|Lukas Fittl> founder of <http://pganalyze.com|pganalyze.com> (he was founding engineer of Citus which I've used in previous project for managed sharded Postgres)  <https://us02web.zoom.us/webinar/register/9816552361071/WN_cjrUDKVuSqO8GckfiCWkbA>"
 #        "Bill Gates says crypto and NFTs are a sham.\n\nWell Windows and Office are a sham.  So it takes one to know one! https://www.cnn.com/2022/06/15/tech/bill-gates-crypto-nfts-comments/index.html"
 #        "Hi all - thank you @Lee Ditiangkin for the invite! I'm co-founder / GP of a new B2B-centric pre-seed and seed-stage fund called Garuda Ventures (garuda.vc). Previously was an early employee at Okta, where I was an early/founding member of all of our inorganic growth functions (M&A, BD, Ventures) -- and before that did a few other things back East in NYC/DC (law/finance/etc). Am based in the Bay Area, but we invest everywhere.\nExcited to meet and learn from technical leaders, operators, and entrepreneurs (and hopefully re-connect with some familiar faces :slightly_smiling_face:). Our portfolio companies are also always hiring. Feel free to reach out! Always up for a chat.",
-#        "Any recommendations for an easy to use no code platform to do mobile app POCs?  A non-technical friend wants to do some prototyping.  I'm looking at bubble.io, flutterflow.io, appgyver.com and appypie.com.  Ideally, I'd like her to start with something that can later be easily ported to a more permanent architecture if her ideas become viable.",
+        "Any recommendations for an easy to use no code platform to do mobile app POCs?  A non-technical friend wants to do some prototyping.  I'm looking at bubble.io, flutterflow.io, appgyver.com and appypie.com.  Ideally, I'd like her to start with something that can later be easily ported to a more permanent architecture if her ideas become viable.",
 #        "Morning Slackers - Anyone here using the enterprise version of https://readme.com/pricing . If so, how much are you paying? Any alternatives?",
 #        "Anyone used https://www.thoughtspot.com/ before or currently using it?"
 #        "Okta not having a good morning:\nhttps://twitter.com/_MG_/status/1506109152665382920"
@@ -745,20 +733,6 @@ if __name__ == "__main__":
 #        "I am looking for a good vendor who has integrations to all of the adtech systems out there to gather and normalize campaign performance data. Ideally, it would be a connector or api we can implement to aggregate campaign performance data.  Also, we have a data lake in S3 and Snowflake, if that helps. Please let me know if anyone knows of any good providers in this space.  Thx!!",    
 #        "Can someone point me to feature flagging best practices? How do you name your feature flags? How do you ensure a configuration of flags is compatible?"
         ]
-    TEST_USER = 'U5FGEALER' # Gene
-    TEST_TS = '1667580780.319159'
-    TEST_CHANNEL_ID = 'GUEPXFVDE' #test
-    TEST_CHANNEL_NAME = 'test' #test
-
-    eventAttributes = {
-            'text': "Best CRM?", 
-            'channel_id': TEST_CHANNEL_ID, 
-            'channel_type': "post", 
-            "thread_ts": "1683745710.504239",
-            'user': TEST_USER,
-            'keyphrasesCap': NUM_BUTTONS_FIRST_POST 
-        }
-    constructAndPostBlock(eventAttributes)
 
 # Test Dall-e draw
 #    dalleURL = dalleOpenAI(TEST_STRINGS[0])
@@ -766,13 +740,12 @@ if __name__ == "__main__":
 
 
     for extractme in TEST_STRINGS:
-         GPTChat(extractme)
+        print('\nmain test Original text:', extractme)
+        ChatGPT(extractme)
 
-#        print('\nmain test Original text:', extractme)
-
+#        print("OpenAI answer:", qAndAOpenAI(extractme))
 #        print("OpenAI extracted phrases:", extractKeyPhrasesOpenAI(extractme, NUM_BUTTONS_FIRST_POST))
 #        print("OpenAI tldr:", tldrOpenAI(extractme))
-#        print("OpenAI answer:", qAndAOpenAI(extractme))
 #        print("OpenAI sarcastic:", SALResponse(extractme))
 #    postMessageToSlackChannel('test', '', 'Best crm?')        
 
@@ -788,7 +761,21 @@ if __name__ == "__main__":
     print("OpenAI extracted phrases:", extractKeyPhrasesOpenAI(thisMessage, NUM_BUTTONS_FIRST_POST))
     print("OpenAI extracted phrases null:", extractKeyPhrasesOpenAI("", NUM_BUTTONS_FIRST_POST))
 
+# Test ChatGPT + Slack Post
+    TEST_USER = 'U5FGEALER' # Gene
+    TEST_TS = '1667580780.319159'
+    TEST_CHANNEL_ID = 'GUEPXFVDE' #test
+    TEST_CHANNEL_NAME = 'test' #test
 
+    eventAttributes = {
+            'text': "Best CRM?", 
+            'channel_id': TEST_CHANNEL_ID, 
+            'channel_type': "post", 
+            "thread_ts": "1683745710.504239",
+            'user': TEST_USER,
+            'keyphrasesCap': NUM_BUTTONS_FIRST_POST 
+        }
+    constructAndPostBlock(eventAttributes)
 
 """
 # Google trend draw test
