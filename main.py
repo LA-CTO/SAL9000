@@ -1,7 +1,5 @@
-# RAKE https://github.com/fabianvf/python-rake
-# howto: https://towardsdatascience.com/extracting-keyphrases-from-text-rake-and-gensim-in-python-eefd0fad582f
-# 
-# Deployed to Google CLoud local - run from repo root dir:
+# Deployed to Google CLoud local - run from repo root dir, first set env var for GCP credentials location:
+# $env:GOOGLE_APPLICATION_CREDENTIALS="C:\code\SAL9000\sal9000-307923-dfcc8f474f83.json"
 # gcloud functions deploy handleEvent --runtime python310 --trigger-http --allow-unauthenticated --project=sal9000-307923 --region=us-west2
 # url: https://us-west2-sal9000-307923.cloudfunctions.net/handleEvent
 
@@ -102,9 +100,6 @@ def fetchChannelsMap():
 # Slack handleEvent webhook: https://us-west2-sal9000-307923.cloudfunctions.net/handleSlashCommand
 # This webhook is set here: https://api.slack.com/apps/A01R8CEGVMF/slash-commands?
 #
-# Deployed to Google CLoud local - run from repo root dir, first set env var for GCP credentials location:
-# $env:GOOGLE_APPLICATION_CREDENTIALS="C:\code\SAL9000\sal9000-307923-dfcc8f474f83.json"
-# gcloud functions deploy handleEvent --runtime python310 --trigger-http --allow-unauthenticated --project=sal9000-307923 --region=us-west2
 #
 # /log [seconds] [error]
 def handleSlashCommand(request):
