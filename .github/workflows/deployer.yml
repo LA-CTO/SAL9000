@@ -10,11 +10,10 @@ jobs:
 
     steps:
     # checkout to our repository so we have access to the source code
-    - uses: actions/checkout@v2
     
     # the actual deployment to google
     - name: Cloud Functions Deploy
-      uses: google-github-actions/deploy-cloud-functions@v0.1.2
+      uses: google-github-actions/deploy-cloud-functions@v1
       with:
         credentials: ${{ secrets.GCP_SA_KEY }}
         name: handleEvent
@@ -42,6 +41,6 @@ jobs:
     # https://github.com/slackapi/slack-github-action
     - name: Send GitHub Action trigger data to Slack workflow
       id: slack
-      uses: slackapi/slack-github-action@v1.23.0
+      uses: slackapi/slack-github-action@v1.24.0
       env:
         SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
