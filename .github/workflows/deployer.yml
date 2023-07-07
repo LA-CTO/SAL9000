@@ -19,7 +19,7 @@ jobs:
       uses: 'google-github-actions/auth@v1'
       with:
         workload_identity_provider: 'projects/859177010724/locations/global/workloadIdentityPools/my-pool/providers/my-provider'
-        service_account: 'my-service-account@${{ secrets.GCP_PROJECT_ID }}.iam.gserviceaccount.com'
+        service_account: 'my-service-account@sal9000-307923.iam.gserviceaccount.com'
 
     # the actual deployment to google https://github.com/marketplace/actions/cloud-functions-deploy or https://github.com/google-github-actions/deploy-cloud-functions
     - id: 'deploy'
@@ -27,7 +27,7 @@ jobs:
       with:
         name: handleEvent
         description: SAL9001 deployment # nullable
-        project_id: ${{ secrets.GCP_PROJECT_ID }}
+        project_id: sal9000-307923
         region: us-west2
         source_dir: ./
         # name of our function in our main.py file, defaults to the resource name suffix 
