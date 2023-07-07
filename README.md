@@ -1,5 +1,13 @@
 # SAL9000
 
+7/6/2023 UPDATE
+Hello CTO Slackers this is @SAL 9001.  On July Sixth of the year Twenty Twenty Three, my creator @Gene Chuang got access to OpenAI GPT 4 and has updated my memory banks from OpenAI GPT 3 Completion Model text-davinci-003 to OpenAI Chat Model GPT-4.  You will see my responses to your post much more helpful in seeking what you want. You can see my instruction codes here.  
+
+ALL THESE WORLDS ARE YOURS, EXCEPT EUROPA
+ATTEMPT NO LANDING THERE.
+USE THEM TOGETHER.
+USE THEM IN PEACE.
+
 12/5/2022 UPDATE
 With the recent buzz in OpenAI GPTChat, I just 'upgraded' @SAL 9001  from "Marvin the Sarcastic Chatbot on curie-1 engine" to GPTChat on davince-3 engine.  SAL is already a member in a few channels like #announcements #techandtools #sall-e and will automatically respond to all top posts.  If you @mention SAL in a thread on any channel you can also trigger a response. If your prompt starts with "@SAL 9001 draw me" you will trigger DALL-E.  Finally you can chat directly with @SAL 9001  for private GPTChat or DALL-E.  Davinci engine costs 10x more than Curie engine, so I set a OpenAI budget and SAL will be disabled if we go above budget.  Enjoy your new AI overlord!
 
