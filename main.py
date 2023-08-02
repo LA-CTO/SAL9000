@@ -51,11 +51,12 @@ SLACK_BOT_TOKEN = getGCPSecretKey('SLACK_BOT_TOKEN')
 SLACK_USER_TOKEN = getGCPSecretKey('SLACK_USER_TOKEN')
 
 openai.api_key = getGCPSecretKey('OPENAI_API_KEY')
+# 7/6/23 GPT-4 Engine upgrade https://openai.com/blog/gpt-4-api-general-availability?utm_source=tldrnewsletter
 # https://platform.openai.com/docs/models
 # https://openai.com/api/pricing/
 #OPENAI_COMPLETION_ENGINE = "text-davinci-003"
 #OPENAI_CHAT_ENGINE = "gpt-4-32k"
-OPENAI_COMPLETION_ENGINE = "text-davinci-003"
+OPENAI_COMPLETION_ENGINE = "gpt-3.5-turbo"
 OPENAI_CHAT_ENGINE = "gpt-4"
 
 SLACK_WEB_CLIENT_BOT = WebClient(token=SLACK_BOT_TOKEN) 
@@ -129,6 +130,8 @@ def handleSlashCommand(request):
             timestamp = entry.timestamp.isoformat()[:-10]
             rtnText += "`* {}: {}`\n".format(timestamp, entry.payload)
 #        print('/log rtnText', rtnText)
+
+#swapped these two around to pix a langchain pydantic issubclass() arg 1 must be a class error
 #        return jsonify(response_type='in_channel',text=rtnText)
         return jsonable_encoder(rtnText)
 
@@ -161,6 +164,30 @@ def extractKeyPhrasesOpenAI(extractMe, keywordsCap):
     extractMe = extractMe.replace("(", "")
     extractMe = extractMe.replace(")", "")
     print("extractKeyPhrasesOpenAI stripped:" + extractMe)
+
+    response = openai.ChatCompletion.create(
+        model=OPENAI_COMPLETION_ENGINE, 
+        messages=[{"role": "user", "content": "Extract keywords from this text:\n\n" + extractMe}])
+    print('chatExtract raw response:', response)
+    response = response.choices[0].message.content
+    print("chatExtract responseTxt.choices[0].message.content: ", response)
+    delim =''
+    if response.find('\n') != -1:
+        delim = '\n'
+    if response.find(',') != -1:
+        delim = ','
+
+    extractedRawList =  response.split(delim)
+
+    returnList = []
+    for i in extractedRawList:
+        if len(i) > 0:
+            returnList.append(i.strip("-").strip(" ").strip("\n")[:40])
+    returnList = returnList[:keywordsCap]
+    return returnList
+"""
+
+
     response = openai.Completion.create(
         engine=OPENAI_COMPLETION_ENGINE,
         prompt="Extract keywords from this text:\n\n" + extractMe, 
@@ -188,6 +215,7 @@ def extractKeyPhrasesOpenAI(extractMe, keywordsCap):
     returnList = returnList[:keywordsCap]
     return returnList
 
+"""
 
 # Return TL;DR summarization with OpenAI
 
@@ -231,6 +259,54 @@ def keyphraseExtraction(request):
     extractedKeyPhrases = extractKeyPhrasesOpenAI(extractMe, NUM_BUTTONS_FIRST_POST)
 
     return str(extractedKeyPhrases)
+
+"""
+ChatGPT 
+"""
+def ChatGPT(text):
+    print('ChatGPT request:', text)
+    print('ChatGPT request length:', len(text))
+    if len(text) < 1:
+        return "I have no answer to that."
+    responseTxt = openai.ChatCompletion.create(
+        model=OPENAI_CHAT_ENGINE, 
+        messages=[{"role": "user", "content": text}])
+    print('ChatGPT raw response:', responseTxt)
+    responseTxt = responseTxt.choices[0].message.content
+    print("ChatGPT responseTxt.choices[0].message.content: ", responseTxt)
+    return responseTxt
+
+
+# DALL-E image complete with OpenAI
+# https://beta.openai.com/docs/guides/images/introduction
+def dalleOpenAI(drawMe):
+    response = openai.Image.create(
+        prompt=drawMe,
+        n=1,
+        size="1024x1024"
+        )
+    image_url = response['data'][0]['url']
+    return image_url
+    
+"""
+sarcasticSAL takes eventAttributes with channel_id and text and calls OpenAI Marv to get a sarcastic response and posts in channel
+"""
+def sarcasticSALResponse(text):
+    response = openai.Completion.create(
+        engine=OPENAI_COMPLETION_ENGINE,
+        prompt="Marv is a chatbot that reluctantly answers questions with sarcastic responses:\n\nYou: " + text + "\n",
+        temperature=0.5,
+        max_tokens=60,
+        top_p=0.3,
+        frequency_penalty=0.5,
+        presence_penalty=0.0
+    )
+    responseTxt = response.choices[0].text[6:] #skip the first 6 chars which is "Marv: "
+    print('sarcastic sal response:', responseTxt)
+    return responseTxt
+
+SALLE_CHANNEL = 'C049KEY2BCK'
+
 
 """
 Args:
@@ -705,6 +781,25 @@ def getGoogleTrendList():
     print("rtn:", rtn)
     return rtn
 
+# codeinterpreter https://github.com/shroominic/codeinterpreter-api
+async def main():
+    # create a session
+    session = CodeInterpreterSession()
+    await session.astart()
+
+    # generate a response based on user input
+    response = await session.generate_response(
+        "Plot the bitcoin chart of 2023 YTD"
+    )
+
+    # output the response (text + image)
+    print("AI: ", response.content)
+    for file in response.files:
+        file.show_image()
+
+    # terminate the session
+    await session.astop()
+
 
 # Main for commandline run and quick tests
 # $env:GOOGLE_APPLICATION_CREDENTIALS="C:\code\SAL9000\sal9000-307923-dfcc8f474f83.json"
@@ -726,7 +821,7 @@ if __name__ == "__main__":
 #        "Not sure where to post this: I'm looking for the recommendation of the dev shops that can absorb the product dev and support soup to nuts, preferably in LatAm, I've already reached out to EPAM, looking for more leads"
 #        "This has been asked a few times on here already, but curious if anyone has developed any strong opinions since the last time it was asked. What has worked the best for your front end teams in E2E testing React Native apps? Appium? Detox?",
 #        "I am looking for a good vendor who has integrations to all of the adtech systems out there to gather and normalize campaign performance data. Ideally, it would be a connector or api we can implement to aggregate campaign performance data.  Also, we have a data lake in S3 and Snowflake, if that helps. Please let me know if anyone knows of any good providers in this space.  Thx!!",    
-#        "Can someone point me to feature flagging best practices? How do you name your feature flags? How do you ensure a configuration of flags is compatible?"
+        "Can someone point me to feature flagging best practices? How do you name your feature flags? How do you ensure a configuration of flags is compatible?"
         ]
 
 # Test Dall-e draw
@@ -736,10 +831,10 @@ if __name__ == "__main__":
 
     for extractme in TEST_STRINGS:
         print('\nmain test Original text:', extractme)
-        ChatGPT(extractme)
+#        ChatGPT(extractme)
+        print("OpenAI extracted phrases:", extractKeyPhrasesOpenAI(extractme, NUM_BUTTONS_FIRST_POST))
 
 #        print("OpenAI answer:", qAndAOpenAI(extractme))
-#        print("OpenAI extracted phrases:", extractKeyPhrasesOpenAI(extractme, NUM_BUTTONS_FIRST_POST))
 #        print("OpenAI tldr:", tldrOpenAI(extractme))
 #        print("OpenAI sarcastic:", SALResponse(extractme))
 #    postMessageToSlackChannel('test', '', 'Best crm?')        
