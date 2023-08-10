@@ -30,6 +30,10 @@ import urllib.request
 #google trends https://towardsdatascience.com/google-trends-api-for-python-a84bc25db88f
 from pytrends.request import TrendReq
 
+#https://github.com/shroominic/codeinterpreter-api
+from codeinterpreterapi import CodeInterpreterSession
+import asyncio
+
 def printTimeElapsed(starttime, label):
     endtime = datetime.utcnow()
     print(str(endtime-starttime)[:-4] + " " + label)
@@ -174,10 +178,12 @@ def extractKeyPhrasesOpenAI(extractMe, keywordsCap):
     delim =''
     if response.find('\n') != -1:
         delim = '\n'
-    if response.find(',') != -1:
+        extractedRawList =  response.split(delim)
+    elif response.find(',') != -1:
         delim = ','
-
-    extractedRawList =  response.split(delim)
+        extractedRawList =  response.split(delim)
+    else: #single token
+        extractedRawList[0] =  response
 
     returnList = []
     for i in extractedRawList:
@@ -717,7 +723,7 @@ def constructBlock(eventAttributes):
             if thread_ts == this_ts: #skip this parent post
                 continue
 #            Doing @user will cause SAL to push notify the user
-            thisUserName = "<@" + thisUserName + ">"
+#            thisUserName = "<@" + thisUserName + ">"
 
             searchResultsString += "<" + thisSearchResult['permalink'] + "|" + thisDate + "> " + " from " + thisUserName+ "\n"
             count += 1
@@ -782,9 +788,9 @@ def getGoogleTrendList():
     return rtn
 
 # codeinterpreter https://github.com/shroominic/codeinterpreter-api
-async def main():
+async def codeinterpreter():
     # create a session
-    session = CodeInterpreterSession()
+    session = CodeInterpreterSession(openai_api_key=openai.api_key)
     await session.astart()
 
     # generate a response based on user input
@@ -800,12 +806,18 @@ async def main():
     # terminate the session
     await session.astop()
 
-
 # Main for commandline run and quick tests
 # $env:GOOGLE_APPLICATION_CREDENTIALS="C:\code\SAL9000\sal9000-307923-dfcc8f474f83.json"
 if __name__ == "__main__":
-#    print("openapi.key: ", openai.api_key)
+    print("openapi.key: ", openai.api_key)
     START_TIME = printTimeElapsed(START_TIME, 'main start')
+
+# $env:OPENAI_API_KEY="thekey"
+#    os.environ["OPENAI_API_KEY"] = openai.api_key
+#    print("Why doesn't this work?? OS Env OPENAI_API_KEY: ", os.environ["OPENAI_API_KEY"])
+# run the async function
+    
+#    asyncio.run(codeinterpreter())
 
     TEST_STRINGS = [
 #         "Has anyone tried https://test.ai/ for AI based QA?  I may try this out soon."
@@ -821,7 +833,7 @@ if __name__ == "__main__":
 #        "Not sure where to post this: I'm looking for the recommendation of the dev shops that can absorb the product dev and support soup to nuts, preferably in LatAm, I've already reached out to EPAM, looking for more leads"
 #        "This has been asked a few times on here already, but curious if anyone has developed any strong opinions since the last time it was asked. What has worked the best for your front end teams in E2E testing React Native apps? Appium? Detox?",
 #        "I am looking for a good vendor who has integrations to all of the adtech systems out there to gather and normalize campaign performance data. Ideally, it would be a connector or api we can implement to aggregate campaign performance data.  Also, we have a data lake in S3 and Snowflake, if that helps. Please let me know if anyone knows of any good providers in this space.  Thx!!",    
-        "Can someone point me to feature flagging best practices? How do you name your feature flags? How do you ensure a configuration of flags is compatible?"
+#        "Can someone point me to feature flagging best practices? How do you name your feature flags? How do you ensure a configuration of flags is compatible?"
         ]
 
 # Test Dall-e draw
@@ -829,10 +841,10 @@ if __name__ == "__main__":
 #    print('Dall-E: ', dalleURL)
 
 
-    for extractme in TEST_STRINGS:
-        print('\nmain test Original text:', extractme)
+#    for extractme in TEST_STRINGS:
+#        print('\nmain test Original text:', extractme)
 #        ChatGPT(extractme)
-        print("OpenAI extracted phrases:", extractKeyPhrasesOpenAI(extractme, NUM_BUTTONS_FIRST_POST))
+#        print("OpenAI extracted phrases:", extractKeyPhrasesOpenAI(extractme, NUM_BUTTONS_FIRST_POST))
 
 #        print("OpenAI answer:", qAndAOpenAI(extractme))
 #        print("OpenAI tldr:", tldrOpenAI(extractme))
@@ -848,8 +860,8 @@ if __name__ == "__main__":
 #        print('retrived whole response: ', response)
 #        thisMessage =  response.get('messages')[0].get('text')
 #    print('Extracting real Slack message:', thisMessage)
-    print("OpenAI extracted phrases:", extractKeyPhrasesOpenAI(thisMessage, NUM_BUTTONS_FIRST_POST))
-    print("OpenAI extracted phrases null:", extractKeyPhrasesOpenAI("", NUM_BUTTONS_FIRST_POST))
+#    print("OpenAI extracted phrases:", extractKeyPhrasesOpenAI(thisMessage, NUM_BUTTONS_FIRST_POST))
+#    print("OpenAI extracted phrases null:", extractKeyPhrasesOpenAI("", NUM_BUTTONS_FIRST_POST))
 
 # Test ChatGPT + Slack Post
     TEST_USER = 'U5FGEALER' # Gene
@@ -858,7 +870,7 @@ if __name__ == "__main__":
     TEST_CHANNEL_NAME = 'test' #test
 
     eventAttributes = {
-            'text': "Best CRM?", 
+            'text': "best CRM?", 
             'channel_id': TEST_CHANNEL_ID, 
             'channel_type': "post", 
             "thread_ts": "1683745710.504239",
