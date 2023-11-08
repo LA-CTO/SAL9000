@@ -31,8 +31,8 @@ import urllib.request
 from pytrends.request import TrendReq
 
 #https://github.com/shroominic/codeinterpreter-api
-from codeinterpreterapi import CodeInterpreterSession
-import asyncio
+#from codeinterpreterapi import CodeInterpreterSession
+#import asyncio
 
 def printTimeElapsed(starttime, label):
     endtime = datetime.utcnow()
@@ -61,7 +61,7 @@ openai.api_key = getGCPSecretKey('OPENAI_API_KEY')
 #OPENAI_COMPLETION_ENGINE = "text-davinci-003"
 #OPENAI_CHAT_ENGINE = "gpt-4-32k"
 OPENAI_COMPLETION_ENGINE = "gpt-3.5-turbo"
-OPENAI_CHAT_ENGINE = "gpt-4"
+OPENAI_CHAT_ENGINE = "gpt-3.5-turbo"
 
 SLACK_WEB_CLIENT_BOT = WebClient(token=SLACK_BOT_TOKEN) 
 SLACK_WEB_CLIENT_USER = WebClient(token=SLACK_USER_TOKEN) 
@@ -183,7 +183,8 @@ def extractKeyPhrasesOpenAI(extractMe, keywordsCap):
         delim = ','
         extractedRawList =  response.split(delim)
     else: #single token
-        extractedRawList[0] =  response
+        extractedRawList =  [response]
+#        extractedRawList[0] =  response
 
     returnList = []
     for i in extractedRawList:
@@ -788,6 +789,7 @@ def getGoogleTrendList():
     return rtn
 
 # codeinterpreter https://github.com/shroominic/codeinterpreter-api
+"""
 async def codeinterpreter():
     # create a session
     session = CodeInterpreterSession(openai_api_key=openai.api_key)
@@ -805,7 +807,7 @@ async def codeinterpreter():
 
     # terminate the session
     await session.astop()
-
+"""
 # Main for commandline run and quick tests
 # $env:GOOGLE_APPLICATION_CREDENTIALS="C:\code\SAL9000\sal9000-307923-dfcc8f474f83.json"
 if __name__ == "__main__":
@@ -821,7 +823,7 @@ if __name__ == "__main__":
 
     TEST_STRINGS = [
 #         "Has anyone tried https://test.ai/ for AI based QA?  I may try this out soon."
-#         "draw me mandalorian riding a bicycle photograph style"
+#         "draw me mandalorian riding a bicycle photograph style"gcl
 #        "Chewy rocks! I like this quote: When you’re nice, people smile. When you’re really nice, people talk. And when you’re exceptionally and consistently nice, you go viral. https://jasonfeifer.bulletin.com/this-company-s-customer-service-is-so-insanely-good-it-went-viral"
 #        "Webinar: How to reason about indexing your Postgres database by <https://www.linkedin.com/in/lfittl/|Lukas Fittl> founder of <http://pganalyze.com|pganalyze.com> (he was founding engineer of Citus which I've used in previous project for managed sharded Postgres)  <https://us02web.zoom.us/webinar/register/9816552361071/WN_cjrUDKVuSqO8GckfiCWkbA>"
 #        "Bill Gates says crypto and NFTs are a sham.\n\nWell Windows and Office are a sham.  So it takes one to know one! https://www.cnn.com/2022/06/15/tech/bill-gates-crypto-nfts-comments/index.html"
