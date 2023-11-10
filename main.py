@@ -22,7 +22,9 @@ from fastapi.encoders import jsonable_encoder
 #openai
 import os
 import openai
-from openai.error import InvalidRequestError
+from openai import OpenAI
+#openai.error disappeared?
+#from openai.error import InvalidRequestError
 
 #urllib.request for getting openai generated png over http and upload into Slack
 import urllib.request
@@ -55,6 +57,7 @@ SLACK_BOT_TOKEN = getGCPSecretKey('SLACK_BOT_TOKEN')
 SLACK_USER_TOKEN = getGCPSecretKey('SLACK_USER_TOKEN')
 
 openai.api_key = getGCPSecretKey('OPENAI_API_KEY')
+openAIClient = OpenAI(api_key=openai.api_key)
 # 7/6/23 GPT-4 Engine upgrade https://openai.com/blog/gpt-4-api-general-availability?utm_source=tldrnewsletter
 # https://platform.openai.com/docs/models
 # https://openai.com/api/pricing/
@@ -168,10 +171,9 @@ def extractKeyPhrasesOpenAI(extractMe, keywordsCap):
     extractMe = extractMe.replace("(", "")
     extractMe = extractMe.replace(")", "")
     print("extractKeyPhrasesOpenAI stripped:" + extractMe)
-
-    response = openai.ChatCompletion.create(
+    response = openAIClient.chat.completions.create(
         model=OPENAI_COMPLETION_ENGINE, 
-        messages=[{"role": "user", "content": "Extract keywords from this text:\n\n" + extractMe}])
+        messages=[{"role": "user", "content": "Extract keywords from this text order by topic:\n\n" + extractMe}])
     print('chatExtract raw response:', response)
     response = response.choices[0].message.content
     print("chatExtract responseTxt.choices[0].message.content: ", response)
@@ -192,42 +194,11 @@ def extractKeyPhrasesOpenAI(extractMe, keywordsCap):
             returnList.append(i.strip("-").strip(" ").strip("\n")[:40])
     returnList = returnList[:keywordsCap]
     return returnList
-"""
-
-
-    response = openai.Completion.create(
-        engine=OPENAI_COMPLETION_ENGINE,
-        prompt="Extract keywords from this text:\n\n" + extractMe, 
-        temperature=0.3,
-        max_tokens=60,
-        top_p=1,
-        frequency_penalty=0.8,
-        presence_penalty=0
-        )
-    print ("extractKeyPhrasesOpenAI raw response:")    
-    print (response)
-    responseRawText = response.choices[0].text    
-    delim =''
-    if responseRawText.find('\n') != -1:
-        delim = '\n'
-    if responseRawText.find(',') != -1:
-        delim = ','
-
-    extractedRawList =  responseRawText.split(delim)
-
-    returnList = []
-    for i in extractedRawList:
-        if len(i) > 0:
-            returnList.append(i.strip("-").strip(" ").strip("\n")[:40])
-    returnList = returnList[:keywordsCap]
-    return returnList
-
-"""
 
 # Return TL;DR summarization with OpenAI
 
 def tldrOpenAI(summarizeMe):
-    response = openai.Completion.create(
+    response = openAIClient.completions.create(
         engine=OPENAI_COMPLETION_ENGINE,
         prompt=summarizeMe +"\n\nTl;dr",
         temperature=0.7,
@@ -275,7 +246,7 @@ def ChatGPT(text):
     print('ChatGPT request length:', len(text))
     if len(text) < 1:
         return "I have no answer to that."
-    responseTxt = openai.ChatCompletion.create(
+    responseTxt = openAIClient.chat.completions.create(
         model=OPENAI_CHAT_ENGINE, 
         messages=[{"role": "user", "content": text}])
     print('ChatGPT raw response:', responseTxt)
@@ -287,10 +258,12 @@ def ChatGPT(text):
 # DALL-E image complete with OpenAI
 # https://beta.openai.com/docs/guides/images/introduction
 def dalleOpenAI(drawMe):
-    response = openai.Image.create(
+    response = openAIClient.images.generate(
+        model="dall-e-3",
         prompt=drawMe,
         n=1,
-        size="1024x1024"
+        size="1024x1024",
+        quality="standard"
         )
     image_url = response['data'][0]['url']
     return image_url
@@ -299,7 +272,7 @@ def dalleOpenAI(drawMe):
 sarcasticSAL takes eventAttributes with channel_id and text and calls OpenAI Marv to get a sarcastic response and posts in channel
 """
 def sarcasticSALResponse(text):
-    response = openai.Completion.create(
+    response = openAIClient.completions.create(
         engine=OPENAI_COMPLETION_ENGINE,
         prompt="Marv is a chatbot that reluctantly answers questions with sarcastic responses:\n\nYou: " + text + "\n",
         temperature=0.5,
@@ -526,7 +499,7 @@ def ChatGPT(text):
     print('ChatGPT request length:', len(text))
     if len(text) < 1:
         return "I have no answer to that."
-    responseTxt = openai.ChatCompletion.create(
+    responseTxt = openAIClient.chat.completions.create(
         model=OPENAI_CHAT_ENGINE, 
         messages=[{"role": "user", "content": text}])
     print('ChatGPT raw response:', responseTxt)
@@ -550,7 +523,7 @@ def dalleOpenAI(drawMe):
 sarcasticSAL takes eventAttributes with channel_id and text and calls OpenAI Marv to get a sarcastic response and posts in channel
 """
 def sarcasticSALResponse(text):
-    response = openai.Completion.create(
+    response = openAIClient.chat.completions.create(
         engine=OPENAI_COMPLETION_ENGINE,
         prompt="Marv is a chatbot that reluctantly answers questions with sarcastic responses:\n\nYou: " + text + "\n",
         temperature=0.5,
@@ -577,23 +550,23 @@ def SALResponse(eventAttributes):
         startIndex = text.lower().index("draw me") + len("draw me")
         text = text[startIndex:] 
         print('bout to draw text: ', text)
-        try:
-            dalleurl = dalleOpenAI(text)
-            webUrl = urllib.request.urlopen(dalleurl)
+#        try:
+        dalleurl = dalleOpenAI(text)
+        webUrl = urllib.request.urlopen(dalleurl)
 
-            new_file = SLACK_WEB_CLIENT_BOT.files_upload(
-                title="MyImage",
-                content=webUrl.read(),
-                filetype='png'
-#                channels=channel_id
-            )
-            file_url = new_file.get("file").get("permalink")
-            print("uploaded image into slack permalink: ", file_url)
-            response = "I drew" + text + " <" + file_url +"|here>"
+        new_file = SLACK_WEB_CLIENT_BOT.files_upload(
+            title="MyImage",
+            content=webUrl.read(),
+            filetype='png',
+            channels=channel_id
+        )
+        file_url = new_file.get("file").get("permalink")
+        print("uploaded image into slack permalink: ", file_url)
+        response = "I drew" + text + " <" + file_url +"|here>"
 
-        except InvalidRequestError as e:
-            dalleurl = ''
-            response = "OpenAI cannot draw " + text + " because " + e.user_message
+#        except InvalidRequestError as e:
+#            dalleurl = ''
+#            response = "OpenAI cannot draw " + text + " because " + e.user_message
         try:
             #If in SALLE_CHANNEL or DM @SAL post in channel, otherwise post in thread
             if SALLE_CHANNEL == channel_id or 'im' == channel_type:
@@ -815,20 +788,21 @@ if __name__ == "__main__":
     START_TIME = printTimeElapsed(START_TIME, 'main start')
 
 # $env:OPENAI_API_KEY="thekey"
-#    os.environ["OPENAI_API_KEY"] = openai.api_key
+    os.environ["OPENAI_API_KEY"] = openai.api_key
 #    print("Why doesn't this work?? OS Env OPENAI_API_KEY: ", os.environ["OPENAI_API_KEY"])
 # run the async function
     
 #    asyncio.run(codeinterpreter())
 
     TEST_STRINGS = [
+        "What's the best cloud data warehouse?"
 #         "Has anyone tried https://test.ai/ for AI based QA?  I may try this out soon."
 #         "draw me mandalorian riding a bicycle photograph style"gcl
 #        "Chewy rocks! I like this quote: When you’re nice, people smile. When you’re really nice, people talk. And when you’re exceptionally and consistently nice, you go viral. https://jasonfeifer.bulletin.com/this-company-s-customer-service-is-so-insanely-good-it-went-viral"
 #        "Webinar: How to reason about indexing your Postgres database by <https://www.linkedin.com/in/lfittl/|Lukas Fittl> founder of <http://pganalyze.com|pganalyze.com> (he was founding engineer of Citus which I've used in previous project for managed sharded Postgres)  <https://us02web.zoom.us/webinar/register/9816552361071/WN_cjrUDKVuSqO8GckfiCWkbA>"
 #        "Bill Gates says crypto and NFTs are a sham.\n\nWell Windows and Office are a sham.  So it takes one to know one! https://www.cnn.com/2022/06/15/tech/bill-gates-crypto-nfts-comments/index.html"
 #        "Hi all - thank you @Lee Ditiangkin for the invite! I'm co-founder / GP of a new B2B-centric pre-seed and seed-stage fund called Garuda Ventures (garuda.vc). Previously was an early employee at Okta, where I was an early/founding member of all of our inorganic growth functions (M&A, BD, Ventures) -- and before that did a few other things back East in NYC/DC (law/finance/etc). Am based in the Bay Area, but we invest everywhere.\nExcited to meet and learn from technical leaders, operators, and entrepreneurs (and hopefully re-connect with some familiar faces :slightly_smiling_face:). Our portfolio companies are also always hiring. Feel free to reach out! Always up for a chat.",
-        "Any recommendations for an easy to use no code platform to do mobile app POCs?  A non-technical friend wants to do some prototyping.  I'm looking at bubble.io, flutterflow.io, appgyver.com and appypie.com.  Ideally, I'd like her to start with something that can later be easily ported to a more permanent architecture if her ideas become viable.",
+#        "Any recommendations for an easy to use no code platform to do mobile app POCs?  A non-technical friend wants to do some prototyping.  I'm looking at bubble.io, flutterflow.io, appgyver.com and appypie.com.  Ideally, I'd like her to start with something that can later be easily ported to a more permanent architecture if her ideas become viable.",
 #        "Morning Slackers - Anyone here using the enterprise version of https://readme.com/pricing . If so, how much are you paying? Any alternatives?",
 #        "Anyone used https://www.thoughtspot.com/ before or currently using it?"
 #        "Okta not having a good morning:\nhttps://twitter.com/_MG_/status/1506109152665382920"
@@ -843,10 +817,10 @@ if __name__ == "__main__":
 #    print('Dall-E: ', dalleURL)
 
 
-#    for extractme in TEST_STRINGS:
+    for extractme in TEST_STRINGS:
+        print("OpenAI extracted phrases:", extractKeyPhrasesOpenAI(extractme, NUM_BUTTONS_FIRST_POST))
 #        print('\nmain test Original text:', extractme)
 #        ChatGPT(extractme)
-#        print("OpenAI extracted phrases:", extractKeyPhrasesOpenAI(extractme, NUM_BUTTONS_FIRST_POST))
 
 #        print("OpenAI answer:", qAndAOpenAI(extractme))
 #        print("OpenAI tldr:", tldrOpenAI(extractme))
@@ -870,7 +844,7 @@ if __name__ == "__main__":
     TEST_TS = '1667580780.319159'
     TEST_CHANNEL_ID = 'GUEPXFVDE' #test
     TEST_CHANNEL_NAME = 'test' #test
-
+"""
     eventAttributes = {
             'text': "best CRM?", 
             'channel_id': TEST_CHANNEL_ID, 
@@ -880,7 +854,7 @@ if __name__ == "__main__":
             'keyphrasesCap': NUM_BUTTONS_FIRST_POST 
         }
     constructAndPostBlock(eventAttributes)
-
+"""
 """
 # Google trend draw test
     trendsList = getGoogleTrendList()
