@@ -265,7 +265,7 @@ def dalleOpenAI(drawMe):
         size="1024x1024",
         quality="standard"
         )
-    image_url = response['data'][0]['url']
+    image_url = response.data[0].url
     return image_url
     
 """
@@ -508,16 +508,6 @@ def ChatGPT(text):
     return responseTxt
 
 
-# DALL-E image complete with OpenAI
-# https://beta.openai.com/docs/guides/images/introduction
-def dalleOpenAI(drawMe):
-    response = openai.Image.create(
-        prompt=drawMe,
-        n=1,
-        size="1024x1024"
-        )
-    image_url = response['data'][0]['url']
-    return image_url
     
 """
 sarcasticSAL takes eventAttributes with channel_id and text and calls OpenAI Marv to get a sarcastic response and posts in channel
@@ -813,8 +803,8 @@ if __name__ == "__main__":
         ]
 
 # Test Dall-e draw
-#    dalleURL = dalleOpenAI(TEST_STRINGS[0])
-#    print('Dall-E: ', dalleURL)
+    dalleURL = dalleOpenAI("Homer Simpson chasing a turkey on a farm, by Matt Groening, matte painting trending on artstation hq")
+    print('Dall-E: ', dalleURL)
 
 
     for extractme in TEST_STRINGS:
