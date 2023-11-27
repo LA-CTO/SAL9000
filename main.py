@@ -259,7 +259,7 @@ def ChatGPT(text):
 # https://beta.openai.com/docs/guides/images/introduction
 def dalleOpenAI(drawMe):
     response = openAIClient.images.generate(
-        model="dall-e-3",
+        model="dall-e-2",
         prompt=drawMe,
         n=1,
         size="1024x1024",
